@@ -42,19 +42,19 @@ def sqr_expKern(x,y,param):
 
 def RdKernel(x,y,param,kernel,type):
   #input:
-  # x,y: arrays of position, dimension =d
+  # x,y: arrays of position, dimension = (n,d)
   # param: parameters of the 1D kernel
   # kernel: type of the 1D kernel
   # type: either "sum" or "product"
 
-  d = x.shape[0]
-  n = x.shape[1]
+  n = x.shape[0]
+  d = x.shape[1]
   kern = np.zeros((n,n))
   for i in range(d):
     if type =="sum":
-        kern += kernel(x[i,:],y[i,:],param)
+        kern += kernel(x[:,i],y[:,i],param)
     elif type == "product":
-        kern *= kernel(x[i,:],y[i,:],param)
+        kern *= kernel(x[:,i],y[:,i],param)
     else:
         print("Type must be either sum or product\n")
         break
