@@ -1,0 +1,8 @@
+# === Python cache files ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# === Jupyter notebooks checkpoints ===
+.ipynb_checkpoints/
