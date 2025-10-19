@@ -1,0 +1,6 @@
+To do list:
+- Affichage 3D des résultats pour pouvoir mettre: la prédiction et les 2 plans max des intervalles de confiance qu'on peut calculer avec la variance
+- Vérifier les formules de la méthode d'ACP classique
+- Implémenter une métrique de validation (RMSE)
+- Implémenter les 2 méthodes d'ACPF (Ondelettes et B-splines)
+- Optimisation des hyper-paramètres : nombre de coefficients pour les décompositions Ondelettes et B-Splines, nombre de composantes principales pour l'ACP

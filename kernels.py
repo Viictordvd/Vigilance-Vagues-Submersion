@@ -42,32 +42,49 @@ def sqr_expKern(x,y,param):
 
 def RdKernel(x,y,param,kernel,type):
   #input:
-  # x,y: arrays of position, dimension = (n,d)
+  # x,y: arrays of position, shape = (n_x,d) and (n_y,d)
   # param: parameters of the 1D kernel
   # kernel: type of the 1D kernel
   # type: either "sum" or "product"
 
-  n = x.shape[0]
-  d = x.shape[1]
-  kern = np.zeros((n,n))
-  for i in range(d):
-    if type =="sum":
-        kern += kernel(x[:,i],y[:,i],param)
-    elif type == "product":
-        kern *= kernel(x[:,i],y[:,i],param)
-    else:
-        print("Type must be either sum or product\n")
-        break
-  return kern
+  n_x, d = x.shape
+  n_y = y.shape[0]
 
-def condMean(x,X,Y,kern,param):
-  k_xX = kern(x, X,param)
-  k_XX = kern(X, X,param)
+  #Initialisation
+  if type == "sum":
+        K = np.zeros((n_x, n_y))
+  elif type == "product":
+        K = np.ones((n_x, n_y))
+  else:
+        raise ValueError("type must be either 'sum' or 'product'")
+
+  for i in range(d):
+    Ki = kernel(x[:, i], y[:, i], param)
+    if type =="sum":
+        K += Ki
+    else:
+        K *= Ki
+  return K
+
+def condMean(x,X,Y,kern,param,multikern=None,type=None):
+  #multikern : precise kernel type if kern is a multidimensional kernel
+  if multikern == None :
+    k_xX = kern(x, X,param)
+    k_XX = kern(X, X,param)
+  else :
+    k_xX = kern(x, X,param,multikern,type)
+    k_XX = kern(X, X,param,multikern,type)
   return k_xX @ np.linalg.inv(k_XX) @ Y
 
-def condVar(x,X,Y,kern,param):
-  k_xx = kern(x, x, param)
-  k_xX = kern(x, X,param)
-  k_Xx = np.transpose(k_xX)
-  k_XX = kern(X, X,param)
+def condVar(x,X,Y,kern,param,multikern=None,type=None):
+  if multikern == None :
+    k_xx = kern(x, x, param)
+    k_xX = kern(x, X,param)
+    k_Xx = np.transpose(k_xX)
+    k_XX = kern(X, X,param)
+  else :
+    k_xx = kern(x, x, param,multikern,type)
+    k_xX = kern(x, X,param,multikern,type)
+    k_Xx = np.transpose(k_xX)
+    k_XX = kern(X, X,param,multikern,type)
   return k_xx - k_xX @ np.linalg.inv(k_XX) @ k_Xx
