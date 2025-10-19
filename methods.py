@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 from kernels import *
 
-def ACP(x_train,x_test,y_train,n_pc,param):
+def ACP(x_train,x_test,y_train,n_pc,param,kernel):
     #ACP
     pca = PCA(n_components=n_pc)
     y_bar = np.mean(y_train,axis=0)
@@ -18,8 +18,8 @@ def ACP(x_train,x_test,y_train,n_pc,param):
 
     #Un métamodèle par composante principale
     for i in range(n_pc):
-        Y_mean[i,:] = condMean(x_test,x_train,Y_train_pca[:,i],RdKernel,param,mat5_2Kern,"sum")
-        Y_var [i,:,:] = condVar(x_test,x_train,Y_train_pca[:,i],RdKernel,param,mat5_2Kern,"sum")
+        Y_mean[i,:] = condMean(x_test,x_train,Y_train_pca[:,i],RdKernel,param,kernel,"sum")
+        Y_var [i,:,:] = condVar(x_test,x_train,Y_train_pca[:,i],RdKernel,param,kernel,"sum")
 
     #Reconstruction
     Y_test_reconstruct = Y_mean.T @ V.T + y_bar[None,:]
