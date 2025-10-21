@@ -10,8 +10,9 @@ def ACP(x_train,x_test,y_train,n_pc,param,kernel):
     Y_train_pca = pca.fit_transform(y_train_norm)
     #Matrice de projection de l'ACP
     V = pca.components_.T
-
+    
     print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
+    print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
     Y_mean = np.zeros((n_pc,x_test.shape[0]))
     Y_var = np.zeros((n_pc,x_test.shape[0],x_test.shape[0]))
