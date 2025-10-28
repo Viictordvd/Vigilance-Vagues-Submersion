@@ -38,6 +38,7 @@ def sqr_expKern(x,y,param):
   x = np.atleast_2d(x).T
   y = np.atleast_2d(y)
   dist = abs(x-y) / theta
+  print(dist)
   return sigma**2*np.exp(-dist**2/2)
 
 def RdKernel(x,y,param,kernel,type):
@@ -67,14 +68,16 @@ def RdKernel(x,y,param,kernel,type):
   return K
 
 def condMean(x,X,Y,kern,param,multikern=None,type=None):
-  #multikern : precise kernel type if kern is a multidimensional kernel
+  #multikern :precise if we use a multi dimensionnal kernel 
   if multikern == None :
     k_xX = kern(x, X,param)
     k_XX = kern(X, X,param)
   else :
-    k_xX = kern(x, X,param,multikern,type)
-    k_XX = kern(X, X,param,multikern,type)
-  return k_xX @ np.linalg.inv(k_XX) @ Y
+    k_xX = multikern(x, X,param,kern,type)
+    k_XX = multikern(X, X,param,kern,type)
+  k_XX += 1e-8 * np.eye(k_XX.shape[0])
+  alpha = np.linalg.solve(k_XX, Y)
+  return k_xX @ alpha
 
 def condVar(x,X,Y,kern,param,multikern=None,type=None):
   if multikern == None :
@@ -83,8 +86,10 @@ def condVar(x,X,Y,kern,param,multikern=None,type=None):
     k_Xx = np.transpose(k_xX)
     k_XX = kern(X, X,param)
   else :
-    k_xx = kern(x, x, param,multikern,type)
-    k_xX = kern(x, X,param,multikern,type)
+    k_xx = multikern(x, x, param,kern,type)
+    k_xX = multikern(x, X,param,kern,type)
     k_Xx = np.transpose(k_xX)
-    k_XX = kern(X, X,param,multikern,type)
-  return k_xx - k_xX @ np.linalg.inv(k_XX) @ k_Xx
+    k_XX = multikern(X, X,param,kern,type)
+  k_XX += 1e-8 * np.eye(k_XX.shape[0])
+  alpha = np.linalg.solve(k_XX, k_Xx)
+  return k_xx - k_xX @ alpha
