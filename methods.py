@@ -3,59 +3,32 @@ from sklearn.decomposition import PCA
 from kernels import *
  
 def ACP(x_train,x_test,y_train,n_pc,param,kernel):
+    print("taille du vecteur de y_train:",y_train.shape)
     #ACP
     pca = PCA(n_components=n_pc)
-    y_bar = np.mean(y_train,axis=0)
+    y_bar = np.mean(y_train,axis=0, keepdims=True)
     y_train_norm = y_train - y_bar
     Y_train_pca = pca.fit_transform(y_train_norm)
+    
     #Matrice de projection de l'ACP
     V = pca.components_.T
     
     print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
     print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
-    Y_mean = np.zeros((n_pc,x_test.shape[0]))
-    Y_var = np.zeros((n_pc,x_test.shape[0],x_test.shape[0]))
 
-    #Un métamodèle par composante principale
-    for i in range(n_pc):
-        Y_mean[i,:] = condMean(x_test,x_train,Y_train_pca[:,i],RdKernel,param,kernel,"sum")
-        Y_var [i,:,:] = condVar(x_test,x_train,Y_train_pca[:,i],RdKernel,param,kernel,"sum")
-
-    #Reconstruction
-    Y_test_reconstruct = Y_mean.T @ V.T + y_bar[None,:]
-    Var_Y_PC_reconstruct = np.stack([np.diag(Cj) for Cj in Y_var], axis=1)
-    V_sq = V**2 
-    Var_Y_reconstruct = Var_Y_PC_reconstruct @ V_sq.T 
+    #Un SEUL métamodèle 
+    Y_mean = condMean(x_test,x_train,Y_train_pca,kernel,param,RdKernel,"sum")
     
-    return Y_test_reconstruct,Var_Y_reconstruct
+    #Reconstruction
+    Y_test_reconstruct = Y_mean @ V.T + y_bar
+    print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
+    
+    return Y_test_reconstruct
 
 def bspline_basis_matrices(t1, t2, x, y, degree=1):
-    """
-    Construit les matrices de base B-spline 1D (Bx, By) et 2D (Bxy)
-    à partir des vecteurs de noeuds t1, t2 et des points d'évaluation x, y.
-    
-    Paramètres
-    ----------
-    t1, t2 : array_like
-        Vecteurs de noeuds (pour x et y).
-    x, y : array_like
-        Points d'évaluation (dans [0,1]).
-    degree : int
-        Degré de la B-spline (par défaut = 1).
-    
-    Retourne
-    --------
-    Bx : ndarray, shape (len(x), nBx)
-        Matrice des fonctions de base 1D en x.
-    By : ndarray, shape (len(y), nBy)
-        Matrice des fonctions de base 1D en y.
-    Bxy : ndarray, shape (len(x)*len(y), nBx*nBy)
-        Matrice de base tensorielle 2D (Kronecker product).
-    """
-
-    def N(i, xx, tt):
-        """Évalue la B-spline linéaire N_i(xx) pour un vecteur de noeuds tt"""
+    #Évalue la B-spline linéaire B_i(xx) pour un vecteur de noeuds tt
+    def B(i, xx, tt):
         yy = np.zeros_like(xx)
         if tt[i+1] > tt[i]:
             mask1 = (xx >= tt[i]) & (xx < tt[i+1])
@@ -67,53 +40,69 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
             yy[xx == tt[-1]] = 1
         return yy
 
-    # --- Matrices 1D
+    #Matrices 1D
     nBx = len(t1) - degree - 1
     nBy = len(t2) - degree - 1
     Bx = np.zeros((len(x), nBx))
     By = np.zeros((len(y), nBy))
 
     for i in range(nBx):
-        Bx[:, i] = N(i, x, t1)
+        Bx[:, i] = B(i, x, t1)
     for j in range(nBy):
-        By[:, j] = N(j, y, t2)
+        By[:, j] = B(j, y, t2)
 
-    # --- Matrice tensorielle 2D (produit de Kronecker)
+    #Matrice tensorielle 2D (produit de Kronecker)
     Bxy = np.kron(By, Bx)
 
     return Bx, By, Bxy
 
-def BsplinesDecomposition(x_train, x_test, y_train, t1, t2, param, kernel):
-    """
-    Substitue l'ACP par une décomposition B-spline tensorielle pour la métamodélisation de champs 2D.
-    """
-    #Construction de la base B-spline sur le maillage
-    n_grid = int(np.sqrt(y_train.shape[1]))  # taille d’un côté (ex: 64x64)
-    z = np.linspace(0, 1, n_grid)
-    Bx, By, Bxy = bspline_basis_matrices(t1, t2, z, z)
-    n_basis = Bxy.shape[1]
-    #Projection des données sur la base (calcul des coefficients)
-    Bmat = Bxy  # (n_grid^2, n_basis)
-    G = np.linalg.pinv(Bmat)  # pseudo-inverse
-    C_train = (G @ y_train.T).T  # (n_train, n_basis)
+def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc,kernel, param, degree=1):
+    print("taille du vecteur de y_train:",y_train.shape)
+    n_points = y_train.shape[1]   # ex: 4096
     
-    print(f"Base B-spline : {n_basis} fonctions de base")
-    print(f"Coefficients shape : {C_train.shape}")
+    #construire la grille 1D (on suppose grille régulière sur [-90,90] pour Z1,Z2)
+    n_grid = int(np.sqrt(n_points))
+    assert n_grid * n_grid == n_points, "y_train doit correspondre à une grille carrée"
+    z = np.linspace(-90, 90, n_grid)
 
-    #Apprentissage (un modèle par coefficient)
-    n_test = x_test.shape[0]
-    Y_mean = np.zeros((n_basis, n_test))
-    Y_var  = np.zeros((n_basis, n_test, n_test))
-
-    for i in range(n_basis):
-        print(f'calcul en cours : {i}/{n_basis}')
-        Y_mean[i,:] = condMean(x_test, x_train, C_train[:,i], RdKernel, param, kernel, "sum")
-        Y_var[i,:,:] = condVar(x_test, x_train, C_train[:,i], RdKernel, param, kernel, "sum")
-
-    #Reconstruction
-    Y_test_reconstruct = (Y_mean.T @ Bmat.T)
-    Var_Y_PC_reconstruct = np.stack([np.diag(Cj) for Cj in Y_var], axis=1)
-    B_sq = Bmat**2
-    Var_Y_reconstruct = Var_Y_PC_reconstruct @ B_sq.T
+    #construire matrices B-spline
+    _, _, Bxy = bspline_basis_matrices(t1, t2, z, z, degree=degree)
     
-    return Y_test_reconstruct, Var_Y_reconstruct
+    # Bxy : (n_points, n_basis)
+    Bmat = Bxy  # alias pour la clarté
+    n_basis = Bmat.shape[1]
+    print("taille de la base B-spline :",n_basis)
+
+    # calcul des coefficients C par moindres carrés
+    # solve Bmat @ c = y  -> c = lstsq(Bmat, y)
+    # y_train.T shape (n_points, n_train) -> lstsq returns (n_basis, n_train)
+    C = np.linalg.lstsq(Bmat, y_train.T, rcond=None)[0].T   # shape (n_basis, n_train)   # (n_train, n_basis)
+    C_bar = np.mean(C,axis=0, keepdims=True)
+    C_centered = C-C_bar
+    
+    print("taille du vecteur de coefficients C centré:",C_centered.shape)
+    print("taille de C_bar:",C_bar.shape)
+    #PCA sur les coefficients
+    pca = PCA(n_components=n_pc)
+    C_train_pca = pca.fit_transform(C_centered)        # (n_train, n_pc)
+    
+    #Matrice de projection de l'ACP             # (n_basis, n_pc)
+    V = pca.components_.T                  
+    
+    print("---")
+    print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
+    print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
+    print("---")
+    print("Taille du jeu d'entrainement transformé par ACP :", C_train_pca.shape)
+    print("taille du vecteur de coefficients après l'ACP:",V.shape)
+
+    #Prédiction GP sur les composantes principales
+    C_mean_GP = condMean(x_test, x_train, C_train_pca, kernel, param, RdKernel, "sum")
+    print("taille de C_mean_GP:",C_mean_GP.shape)
+    # Reconstruction : moyenne des coefficients pour chaque test
+    C_reconstruct = C_mean_GP @ V.T + C_bar    # (n_test, n_basis)
+    print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
+    # reconstruction des champs en espace original
+    Y_test_reconstruct = C_reconstruct @ Bmat.T   # (n_test, n_points)
+    print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
+    return Y_test_reconstruct
