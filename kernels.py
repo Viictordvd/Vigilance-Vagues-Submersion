@@ -37,7 +37,7 @@ def sqr_expKern(x,y,param):
   sigma = param[1]
   x = np.atleast_2d(x).T
   y = np.atleast_2d(y)
-  dist = abs(x-y) / theta
+  dist = np.linalg.norm(x - y) / theta
   return sigma**2*np.exp(-dist**2/2)
 
 def RdKernel(x,y,param,kernel,type):
@@ -74,7 +74,8 @@ def condMean(x,X,Y,kern,param,multikern=None,type=None):
   else :
     k_xX = multikern(x, X,param,kern,type)
     k_XX = multikern(X, X,param,kern,type)
-  return k_xX @ np.linalg.inv(k_XX) @ Y
+  eps=1e-8
+  return k_xX @ np.linalg.inv(k_XX+eps*np.eye(k_XX.shape[0])) @ Y
 
 def condVar(x,X,Y,kern,param,multikern=None,type=None):
   if multikern == None :
