@@ -72,8 +72,8 @@ def condMean(x,X,Y,kern,param,multikern=None,type=None):
     k_xX = kern(x, X,param)
     k_XX = kern(X, X,param)
   else :
-    k_xX = kern(x, X,param,multikern,type)
-    k_XX = kern(X, X,param,multikern,type)
+    k_xX = multikern(x, X,param,kern,type)
+    k_XX = multikern(X, X,param,kern,type)
   return k_xX @ np.linalg.inv(k_XX) @ Y
 
 def condVar(x,X,Y,kern,param,multikern=None,type=None):
@@ -83,8 +83,8 @@ def condVar(x,X,Y,kern,param,multikern=None,type=None):
     k_Xx = np.transpose(k_xX)
     k_XX = kern(X, X,param)
   else :
-    k_xx = kern(x, x, param,multikern,type)
-    k_xX = kern(x, X,param,multikern,type)
+    k_xx = multikern(x, x, param,kern,type)
+    k_xX = multikern(x, X,param,kern,type)
     k_Xx = np.transpose(k_xX)
-    k_XX = kern(X, X,param,multikern,type)
+    k_XX = multikern(X, X,param,kern,type)
   return k_xx - k_xX @ np.linalg.inv(k_XX) @ k_Xx
