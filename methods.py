@@ -42,49 +42,6 @@ def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
     
     return qmc.scale(best_sample, bounds[0], bounds[1])
 
-
-    # Preprocessing: scale outputs (optional but you used it)
-    scaler_y = StandardScaler()
-    y_train_scaled = scaler_y.fit_transform(y_train)  # shape (n_train, D)
-
-    # PCA on scaled outputs
-    pca = PCA(n_components=n_pc)
-    Y_train_pca = pca.fit_transform(y_train_scaled)   # (n_train, n_pc)
-
-    # Save train reconstruction check
-    Y_rec_train = scaler_y.inverse_transform(pca.inverse_transform(Y_train_pca))
-    print("relative error on TRAIN reconstr:", np.linalg.norm(Y_rec_train - y_train) / np.linalg.norm(y_train))
-    print("explained variance sum:", np.sum(pca.explained_variance_ratio_))
-
-    # --- GP predictions for each PC (we build mu (m,n_pc) and covariance matrices C_j (m,m)) ---
-    # condMean and condVar must accept Y as (n_train, n_pc) and return:
-    # - condMean -> (m, n_pc)
-    # - condVar  -> either a list of p covariance matrices (m,m) or a 3D array (n_pc, m, m)
-    mu_all = condMean(x_test, x_train, Y_train_pca, kernel, param, RdKernel, "sum")  # should return (m, n_pc)
-    # For variance, we'll call condVar for each component to make life simpler and explicit:
-    m = x_test.shape[0]
-    C_list = []
-    for j in range(n_pc):
-        # ask condVar with Y = Y_train_pca[:, j] (scalar output)
-        Cj = condVar(x_test, x_train, Y_train_pca[:, j], kernel, param, RdKernel, "sum")
-        # ensure symmetry + jitter
-        Cj = 0.5 * (Cj + Cj.T) + 1e-8 * np.eye(m)
-        C_list.append(Cj)
-
-    # mu_all is (m, n_pc)
-    # Simulate one sample (or several) of PC trajectories consistently:
-    PC_sample = np.zeros_like(mu_all)  # (m, n_pc)
-    for j in range(n_pc):
-        mu_j = mu_all[:, j]
-        Cj = C_list[j]
-        PC_sample[:, j] = np.random.multivariate_normal(mu_j, Cj)
-
-    # Reconstruct in scaled output space then inverse scale
-    Y_sample_scaled = pca.inverse_transform(PC_sample)      # (m, D) in scaled space
-    Y_sample = scaler_y.inverse_transform(Y_sample_scaled)  # back to original units
-
-    return Y_sample, mu_all, C_list, pca, scaler_y
-
 def ACP(x_train,x_test,y_train,n_pc,param,kernel):
     #Scaling des données
     scaler_y = StandardScaler()
@@ -167,14 +124,9 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,kernel,K_tilde=0,p=0):
         cA = wavelets_test_reconstruct_total[i, :n_cA].copy()
         cD = wavelets_test_reconstruct_total[i, n_cA:n_cA+n_cD].copy()
         y_rec = pywt.idwt(cA, cD, wavelet="db4", mode="periodization")
-        # idwt may return a float array slightly different length depending on padding; trim/pad to original length
-        if y_rec.shape[0] > signal_length:
-            y_rec = y_rec[:signal_length]
-            print("A")
-        elif y_rec.shape[0] < signal_length:
-            y_rec = np.pad(y_rec, (0, signal_length - y_rec.shape[0]), mode='constant')
-            print("B")
         Y_test_reconstruct[i, :] = y_rec
 
     return Y_test_reconstruct
 
+def test(mot):
+    print(f"Ton mot mtn : {mot}")
