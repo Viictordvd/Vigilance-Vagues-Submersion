@@ -1,8 +1,10 @@
 import numpy as np
 from sklearn.decomposition import PCA
 from kernels import *
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel
  
-def ACP(x_train,x_test,y_train,n_pc,param,kernel):
+def ACP(x_train,x_test,y_train,n_pc,param):
     print("taille du vecteur de y_train:",y_train.shape)
     #ACP
     pca = PCA(n_components=n_pc)
@@ -16,12 +18,19 @@ def ACP(x_train,x_test,y_train,n_pc,param,kernel):
     print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
     print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
-
-    #Un SEUL métamodèle 
-    Y_mean = condMean(x_test,x_train,Y_train_pca,kernel,param,RdKernel,"sum")
     
+    #Prédiction GP sur les composantes principales
+    gps = []
+    for i in range(n_pc):
+        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
+        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
+        gp.fit(x_train, Y_train_pca[:, i])
+        gps.append(gp)
+
+    # prédiction
+    Y_mean_GP = np.column_stack([gp.predict(x_test) for gp in gps])
     #Reconstruction
-    Y_test_reconstruct = Y_mean @ V.T + y_bar
+    Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
     print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
     
     return Y_test_reconstruct
@@ -56,7 +65,7 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
 
     return Bx, By, Bxy
 
-def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc,kernel, param, degree=1):
+def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     print("taille du vecteur de y_train:",y_train.shape)
     n_points = y_train.shape[1]   # ex: 4096
     
@@ -81,11 +90,10 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc,kernel, param, degree=1):
     C_centered = C-C_bar
     
     print("taille du vecteur de coefficients C centré:",C_centered.shape)
-    print("taille de C_bar:",C_bar.shape)
     #PCA sur les coefficients
     pca = PCA(n_components=n_pc)
     C_train_pca = pca.fit_transform(C_centered)        # (n_train, n_pc)
-    
+    print("taille de la c_train pca :",C_train_pca.shape)
     #Matrice de projection de l'ACP             # (n_basis, n_pc)
     V = pca.components_.T                  
     
@@ -97,7 +105,15 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc,kernel, param, degree=1):
     print("taille du vecteur de coefficients après l'ACP:",V.shape)
 
     #Prédiction GP sur les composantes principales
-    C_mean_GP = condMean(x_test, x_train, C_train_pca, kernel, param, RdKernel, "sum")
+    gps = []
+    for i in range(n_pc):
+        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
+        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
+        gp.fit(x_train, C_train_pca[:, i])
+        gps.append(gp)
+
+    # prédiction
+    C_mean_GP = np.column_stack([gp.predict(x_test) for gp in gps])
     print("taille de C_mean_GP:",C_mean_GP.shape)
     # Reconstruction : moyenne des coefficients pour chaque test
     C_reconstruct = C_mean_GP @ V.T + C_bar    # (n_test, n_basis)
