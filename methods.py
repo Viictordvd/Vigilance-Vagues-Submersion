@@ -4,7 +4,8 @@ from kernels import *
 import pywt
 from scipy.stats import qmc
 from scipy.spatial.distance import pdist
-from sklearn.preprocessing import StandardScaler
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, Matern, WhiteKernel
 
 def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
     #bounds : array of dimension (2 x n_dim) with lower and upper bounds
@@ -27,7 +28,7 @@ def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
         # échange de deux valeurs dans une dimension aléatoire
         new_sample = best_sample.copy()
         i, j = rng.integers(0, n_samples, 2)
-        k = rng.integers(0, n_dim)  # 🔧 correction ici
+        k = rng.integers(0, n_dim)  
         new_sample[i, k], new_sample[j, k] = new_sample[j, k], new_sample[i, k]
         
         new_score = min_dist(new_sample)
@@ -42,35 +43,41 @@ def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
     
     return qmc.scale(best_sample, bounds[0], bounds[1])
 
-def ACP(x_train,x_test,y_train,n_pc,param,kernel):
-    #Scaling des données
-    scaler_y = StandardScaler()
-    y_train_scaled = scaler_y.fit_transform(y_train)
+def ACP(x_train,x_test,y_train,n_pc,param):
+    #Centrage des données
+    y_bar = np.mean(y_train,axis=0, keepdims=True)
+    y_train_norm = y_train - y_bar
     #ACP
     pca = PCA(n_components=n_pc)
-    Y_train_pca = pca.fit_transform(y_train_scaled)
-
+    Y_train_pca = pca.fit_transform(y_train_norm)
+    
+    #Matrice de projection de l'ACP
+    V = pca.components_.T
+    print(Y_train_pca.shape)
     print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
     print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
 
-    #Un SEUL métamodèle 
-    Y_mean = condMean(x_test,x_train,Y_train_pca,kernel,param,RdKernel,"sum")
-    Y_var = condVar(x_test,x_train,Y_train_pca,kernel,param,RdKernel,"sum")
-    #Simulation 
-    PC_test_reconstruct = np.zeros_like(Y_mean)
-    for i in range (n_pc):
-      PC_test_reconstruct[:,i] = np.random.multivariate_normal(Y_mean[:,i],Y_var)
-    #Reconstruction
-    #Y_test_reconstruct = scaler_y.inverse_transform(pca.inverse_transform(Y_mean))
-    Y_test_reconstruct = scaler_y.inverse_transform(pca.inverse_transform(PC_test_reconstruct))
-    #V_sq = V**2 
-    #Var_Y_reconstruct = Y_var @ V_sq.T 
-    
-    return Y_test_reconstruct,None
+    #Prédiction GP sur les composantes principales
+    gps = [] 
+    for i in range(n_pc):
+        #Définition du noyau
+        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
+        #Instanciation du GP
+        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
+        #Entrainement du GP
+        gp.fit(x_train, Y_train_pca[:, i])
+        #Stockage du GP dans une liste
+        gps.append(gp)
+    #Prédiction
+    Y_mean = np.column_stack([gp.predict(x_test) for gp in gps])
 
-def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,kernel,K_tilde=0,p=0):
-    
+    #Reconstruction
+    Y_test_reconstruct = Y_mean @ V.T + y_bar
+
+    return Y_test_reconstruct
+
+def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0):
     #Décomposition en ondelettes 
     n_samples, signal_length = y_train.shape
     # Première décomposition pour avoir les dimensions de sorties
@@ -106,7 +113,7 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,kernel,K_tilde=0,p=0):
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    wavelets_test_reconstruct,Var_wavelets_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,n_pc,param,kernel)
+    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,n_pc,param)
 
     #Moyenne empirique pour les coefficients non sélectionnés
     coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean,axis=0,keepdims=True)
@@ -127,6 +134,3 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,kernel,K_tilde=0,p=0):
         Y_test_reconstruct[i, :] = y_rec
 
     return Y_test_reconstruct
-
-def test(mot):
-    print(f"Ton mot mtn : {mot}")

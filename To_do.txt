@@ -1,5 +1,6 @@
 To do list:
-- Comprendre pourquoi les résultats ne sont pas bons
+- Vérifier la reconstruction de l'ACP (projeter reprojeter et vérifier qu'on a bien la même carte)
+- Optimisation des paramètres (K_tilde, theta, sigma)
 - Affichage 3D des résultats pour pouvoir mettre: la prédiction et les 2 plans max des intervalles de confiance qu'on peut calculer avec la variance
 - Optimisation des hyper-paramètres : nombre de coefficients pour les décompositions Ondelettes et B-Splines, nombre de composantes principales pour l'ACP
 

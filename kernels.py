@@ -38,7 +38,6 @@ def sqr_expKern(x,y,param):
   x = np.atleast_2d(x).T
   y = np.atleast_2d(y)
   dist = abs(x-y) / theta
-  print(dist)
   return sigma**2*np.exp(-dist**2/2)
 
 def RdKernel(x,y,param,kernel,type):
