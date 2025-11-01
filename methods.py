@@ -3,6 +3,22 @@ from sklearn.decomposition import PCA
 from kernels import *
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
+def GP(x_train,x_test,y_train,n_pc,param):
+    #Prédiction GP sur les composantes principales
+    means = []
+    variances = []
+    for i in range(n_pc):
+        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
+        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
+        gp.fit(x_train, y_train[:, i])
+        mean_i, std_i = gp.predict(x_test, return_std=True)
+        means.append(mean_i)
+        variances.append(std_i**2)  # variance = std²
+
+    mean = np.column_stack(means)
+    var = np.column_stack(variances)
+    return mean#,var
  
 def ACP(x_train,x_test,y_train,n_pc,param):
     print("taille du vecteur de y_train:",y_train.shape)
@@ -20,15 +36,8 @@ def ACP(x_train,x_test,y_train,n_pc,param):
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
     
     #Prédiction GP sur les composantes principales
-    gps = []
-    for i in range(n_pc):
-        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
-        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
-        gp.fit(x_train, Y_train_pca[:, i])
-        gps.append(gp)
-
-    # prédiction
-    Y_mean_GP = np.column_stack([gp.predict(x_test) for gp in gps])
+    Y_mean_GP = GP(x_train,x_test,Y_train_pca,n_pc,param)
+    
     #Reconstruction
     Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
     print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
@@ -78,23 +87,22 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     _, _, Bxy = bspline_basis_matrices(t1, t2, z, z, degree=degree)
     
     # Bxy : (n_points, n_basis)
-    Bmat = Bxy  # alias pour la clarté
-    n_basis = Bmat.shape[1]
+    n_basis = Bxy.shape[1]
     print("taille de la base B-spline :",n_basis)
 
     # calcul des coefficients C par moindres carrés
-    # solve Bmat @ c = y  -> c = lstsq(Bmat, y)
+    # solve Bxy @ c = y  -> c = lstsq(Bxy, y)
     # y_train.T shape (n_points, n_train) -> lstsq returns (n_basis, n_train)
-    C = np.linalg.lstsq(Bmat, y_train.T, rcond=None)[0].T   # shape (n_basis, n_train)   # (n_train, n_basis)
+    C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
     C_bar = np.mean(C,axis=0, keepdims=True)
     C_centered = C-C_bar
-    
     print("taille du vecteur de coefficients C centré:",C_centered.shape)
+    
     #PCA sur les coefficients
     pca = PCA(n_components=n_pc)
-    C_train_pca = pca.fit_transform(C_centered)        # (n_train, n_pc)
+    C_train_pca = pca.fit_transform(C_centered)
     print("taille de la c_train pca :",C_train_pca.shape)
-    #Matrice de projection de l'ACP             # (n_basis, n_pc)
+    #Matrice de projection de l'ACP
     V = pca.components_.T                  
     
     print("---")
@@ -105,20 +113,15 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     print("taille du vecteur de coefficients après l'ACP:",V.shape)
 
     #Prédiction GP sur les composantes principales
-    gps = []
-    for i in range(n_pc):
-        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
-        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
-        gp.fit(x_train, C_train_pca[:, i])
-        gps.append(gp)
-
-    # prédiction
-    C_mean_GP = np.column_stack([gp.predict(x_test) for gp in gps])
+    C_mean_GP = GP(x_train,x_test,C_train_pca,n_pc,param)
     print("taille de C_mean_GP:",C_mean_GP.shape)
+    
     # Reconstruction : moyenne des coefficients pour chaque test
     C_reconstruct = C_mean_GP @ V.T + C_bar    # (n_test, n_basis)
     print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
-    # reconstruction des champs en espace original
-    Y_test_reconstruct = C_reconstruct @ Bmat.T   # (n_test, n_points)
+    
+    # reconstruction dans l'espace de départ
+    Y_test_reconstruct = C_reconstruct @ Bxy.T   # (n_test, n_points)
     print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
+    
     return Y_test_reconstruct
