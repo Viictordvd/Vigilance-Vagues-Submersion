@@ -62,7 +62,7 @@ def ACP(x_train,x_test,y_train,n_pc,param):
     gps = [] 
     for i in range(n_pc):
         #Définition du noyau
-        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
+        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-5)
         #Instanciation du GP
         gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
         #Entrainement du GP
@@ -78,7 +78,6 @@ def ACP(x_train,x_test,y_train,n_pc,param):
     return Y_test_reconstruct
 
 def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0):
-    #Décomposition en ondelettes 
     n_samples, signal_length = y_train.shape
     # Première décomposition pour avoir les dimensions de sorties
     cA0, cD0 = pywt.dwt(y_train[0, :], wavelet="db4", mode="periodization") #cA = coeff approximation, cD = coeff details
@@ -88,28 +87,34 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0):
 
     coeffs_wavelets = np.zeros((n_samples, K), dtype=float)
 
+    #Décomposition en ondelettes de profondeur 1 pour chaque entrée
     for i in range(n_samples):
         cA, cD = pywt.dwt(y_train[i, :], wavelet="db4", mode="periodization")
         coeffs_wavelets[i, :n_cA] = cA
         coeffs_wavelets[i, n_cA:] = cD
     
     #Sélection des K_tildes coefficients pour l'ACP
+    #Calcul du ratio d'énergie moyen de chaque coefficient
     lambda_k = np.mean(coeffs_wavelets**2/np.sum(coeffs_wavelets**2,axis=1,keepdims=True),axis=0)
+    #Tri dans l'ordre décroissant
     indices_sorted = np.argsort(lambda_k)[::-1]
     lambda_k_sorted = lambda_k[indices_sorted]
     if K_tilde!=0 :
+        #K_tilde !=0 , on prend les K_tilde coefficients d'ondelettes avec lambda_k les plus élevés
         indices_ACP = indices_sorted[:K_tilde]
         energy = np.sum(lambda_k_sorted[:K_tilde])
         print(f"Proportion moyenne de l'énergie : {energy} ")
     elif p!=0 : 
-        cum_energy = np.cumsum(lambda_k_sorted)
-        K_tilde = np.where(cum_energy > p )[0][0]-1
+        # p!=0, on prend les coefficients d'ondelettes avec lambda_k les plus élevés jusquà ce que la somme des lambda_k soit supérieure à p
+        K_tilde = np.searchsorted(np.cumsum(lambda_k_sorted), p, side='left') + 1
         indices_ACP = indices_sorted[:K_tilde]
         print(f"Nombre de coefficients conservés pour l'ACP : {K_tilde-1}")
     else :
-        RuntimeError("Either K_tilde or p must be different of 0")
+        ValueError("Either K_tilde or p must be different of 0")
+    #Séparation des deux types de coefficients d'ondelettes : ceux prédit par ACP et ceux prédit par moyenne empirique
+    indices_ACP.sort()
+    indices_mean = np.setdiff1d(np.arange(K), indices_ACP)
     coeffs_wavelets_ACP = coeffs_wavelets[:,indices_ACP]
-    indices_mean = np.delete(np.arange(K), indices_ACP)
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
