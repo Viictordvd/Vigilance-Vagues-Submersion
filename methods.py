@@ -1,8 +1,10 @@
 import numpy as np
 from sklearn.decomposition import PCA
 from kernels import *
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+import tensorflow as tf
+import gpflow
+from gpflow.kernels import SquaredExponential
+from gpflow.mean_functions import Constant
 import pywt
 from scipy.stats import qmc
 from scipy.spatial.distance import pdist
@@ -44,21 +46,37 @@ def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
     return qmc.scale(best_sample, bounds[0], bounds[1])
 
 
-def GP(x_train,x_test,y_train,n_pc,param):
-    #Prédiction GP sur les composantes principales
+def GP(x_train, x_test, y_train, n_pc, param):
     means = []
-    variances = []
+
+    # Conversion numpy -> tensorflow
+    X_train = tf.convert_to_tensor(x_train, dtype=tf.float64)
+    X_test  = tf.convert_to_tensor(x_test, dtype=tf.float64)
+
     for i in range(n_pc):
-        kernel_gp = (param[1]**2) * RBF(length_scale=param[0]) + WhiteKernel(noise_level=1e-6)
-        gp = GaussianProcessRegressor(kernel=kernel_gp, normalize_y=True)
-        gp.fit(x_train, y_train[:, i])
-        mean_i, std_i = gp.predict(x_test, return_std=True)
-        means.append(mean_i)
-        variances.append(std_i**2)  # variance = std²
+        Y_train = tf.convert_to_tensor(y_train[:, i:i+1], dtype=tf.float64)
+
+        # Définition du kernel : (variance * RBF(length_scale)) + bruit blanc
+        kernel = gpflow.kernels.SquaredExponential(lengthscales=param[0], variance=param[1]**2) + gpflow.kernels.White(variance=1e-6)
+
+        # Modèle GP régressif
+        model = gpflow.models.GPR(data=(X_train, Y_train),kernel=kernel,mean_function=Constant())
+
+        # Optimisation des hyperparamètres
+        opt = gpflow.optimizers.Scipy()
+        opt.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))
+        
+        # Affichage des hyperparamètres optimisés
+        print("Affichage des hyperparamètres optimisés")
+        print(f"\n--- Composante principale {i+1} ---")
+        gpflow.utilities.print_summary(model)
+        
+        # Prédiction
+        mean_i, var_i = model.predict_f(X_test)
+        means.append(mean_i.numpy().flatten())
 
     mean = np.column_stack(means)
-    var = np.column_stack(variances)
-    return mean#,var
+    return mean
 
 def ACP(x_train,x_test,y_train,n_pc,param):
     #Centrage des données
