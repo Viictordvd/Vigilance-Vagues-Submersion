@@ -1,2 +1,11 @@
 To do list:
 - Optimisation des hyper-paramètres : nombre de coefficients pour les décompositions Ondelettes et B-Splines, nombre de composantes principales pour l'ACP -> a faire
+- Amélioration résolution Ondelettes et B-Splines pour voir si amélioration des prédictions
+- Impact du plan d'expérience sur les résultats
+- Regarder les résultats intermédiaires des métamodèles (valeur des hyperparamètres, validation du modèle)
+- Test de la robustesse (ajout de bruit ou d'irrégularités)
+- Passer sur des entrées fonctionnelles qui dépendent du temps, adapter Campbell pour que ça marche 
+- 8 fonctions de [0,T] -> [0,1] en entrées une sortie carte (comme avant)
+- Adapter le GP et le kernel pour gérer ces entrées
+- Décomposition Fourier des entrées et garder qu'un certain nombre de coefficients pour pouvoir repasser en mode scalaire (comme avant)
+- Créer un fichier requirements.txt pour les extérieurs qui veulent launch le code
