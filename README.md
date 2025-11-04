@@ -9,9 +9,10 @@
 
 2. **Installer les librairies**
    On recommande de créer un environnement virtuel puis d'installer les dépendances :
-   ```pip install -r requirements.txt
+   ```bash
+   pip install -r requirements.txt
 
 Pour la présentation du projet, merci de lire le fichier "Présentation du projet.pdf"
 
-Auteurs : Paul Slisse, Victor Davodeau
-Sous la direction de : Pascale Noble, Olivier Roustant, Remy Baraille
+Auteurs : Paul Slisse et Victor Davodeau  
+Sous la direction de : Pascale Noble, Olivier Roustant et Remy Baraille
