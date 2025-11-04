@@ -152,30 +152,9 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     # solve Bxy @ c = y  -> c = lstsq(Bxy, y)
     # y_train.T shape (n_points, n_train) -> lstsq returns (n_basis, n_train)
     C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
-    C_bar = np.mean(C,axis=0, keepdims=True)
-    C_centered = C-C_bar
-    print("taille du vecteur de coefficients C centré:",C_centered.shape)
     
-    #PCA sur les coefficients
-    pca = PCA(n_components=n_pc)
-    C_train_pca = pca.fit_transform(C_centered)
-    print("taille de la c_train pca :",C_train_pca.shape)
-    #Matrice de projection de l'ACP
-    V = pca.components_.T                  
-    
-    print("---")
-    print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
-    print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
-    print("---")
-    print("Taille du jeu d'entrainement transformé par ACP :", C_train_pca.shape)
-    print("taille du vecteur de coefficients après l'ACP:",V.shape)
-
-    #Prédiction GP sur les composantes principales
-    C_mean_GP = GP(x_train,x_test,C_train_pca,n_pc,param)
-    print("taille de C_mean_GP:",C_mean_GP.shape)
-    
-    # Reconstruction : moyenne des coefficients pour chaque test
-    C_reconstruct = C_mean_GP @ V.T + C_bar    # (n_test, n_basis)
+    #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
+    C_reconstruct = ACP(x_train,x_test,C,n_pc,param)
     print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
     
     # reconstruction dans l'espace de départ
