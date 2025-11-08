@@ -163,22 +163,24 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
 
     return Y_test_reconstruct
 
-def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0):
+def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
+
     n_samples, signal_length = y_train.shape
-    # Première décomposition pour avoir les dimensions de sorties
-    cA0, cD0 = pywt.dwt(y_train[0, :], wavelet="db4", mode="periodization") #cA = coeff approximation, cD = coeff details
-    n_cA = cA0.shape[0]
-    n_cD = cD0.shape[0]
-    K = n_cA + n_cD
+    wavelet = "db4"
 
-    coeffs_wavelets = np.zeros((n_samples, K), dtype=float)
-
-    #Décomposition en ondelettes de profondeur 1 pour chaque entrée
+    # Décomposition en ondelettes multi-résolution (J niveaux)
+    coeffs_list = []
     for i in range(n_samples):
-        cA, cD = pywt.dwt(y_train[i, :], wavelet="db4", mode="periodization")
-        coeffs_wavelets[i, :n_cA] = cA
-        coeffs_wavelets[i, n_cA:] = cD
-    
+        coeffs = pywt.wavedec(y_train[i, :], wavelet=wavelet, mode="periodization", level=J)
+        coeffs_list.append(coeffs)
+
+    # Structure des coefficients : [cA_J, cD_J, cD_{J-1}, ..., cD_1]
+    coeffs_shapes = [c.shape[0] for c in coeffs_list[0]]
+    K = sum(coeffs_shapes)
+    coeffs_wavelets = np.zeros((n_samples, K))
+    for i, coeffs in enumerate(coeffs_list):
+        coeffs_wavelets[i, :] = np.concatenate(coeffs)
+
     #Sélection des K_tildes coefficients pour l'ACP
     #Calcul du ratio d'énergie moyen de chaque coefficient
     lambda_k = np.mean(coeffs_wavelets**2/np.sum(coeffs_wavelets**2,axis=1,keepdims=True),axis=0)
@@ -219,9 +221,14 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0):
     Y_test_reconstruct = np.zeros((n_test, signal_length), dtype=float)
 
     for i in range(n_test):
-        cA = wavelets_test_reconstruct_total[i, :n_cA].copy()
-        cD = wavelets_test_reconstruct_total[i, n_cA:n_cA+n_cD].copy()
-        y_rec = pywt.idwt(cA, cD, wavelet="db4", mode="periodization")
-        Y_test_reconstruct[i, :] = y_rec
+        coeffs_flat = wavelets_test_reconstruct_total[i, :]
+        coeffs_rec = []
+        idx = 0
+        # On resépare les coefficients de chaque résolutions
+        for shape in coeffs_shapes:
+            coeffs_rec.append(coeffs_flat[idx:idx+shape])
+            idx += shape
+        # Reconstruction inverse multirésolution
+        Y_test_reconstruct[i, :] = pywt.waverec(coeffs_rec, wavelet=wavelet, mode="periodization")
 
     return Y_test_reconstruct

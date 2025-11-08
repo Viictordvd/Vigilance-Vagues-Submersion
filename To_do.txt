@@ -1,6 +1,6 @@
 To do list:
 - Optimisation des hyper-paramètres : nombre de coefficients pour les décompositions Ondelettes et B-Splines, nombre de composantes principales pour l'ACP -> a faire
-- Amélioration résolution Ondelettes et B-Splines pour voir si amélioration des prédictions
+- Amélioration résolution Ondelettes et B-Splines pour voir si amélioration des prédictions -> FAIT pour Ondelettes
 - Impact du plan d'expérience sur les résultats
 - Regarder les résultats intermédiaires des métamodèles (valeur des hyperparamètres, validation du modèle)
 - Test de la robustesse (ajout de bruit ou d'irrégularités)
