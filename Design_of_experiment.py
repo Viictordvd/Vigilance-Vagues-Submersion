@@ -1,6 +1,4 @@
 import numpy as np
-from sklearn.decomposition import PCA
-from kernels import *
 from scipy.stats import qmc
 from scipy.spatial.distance import pdist
 

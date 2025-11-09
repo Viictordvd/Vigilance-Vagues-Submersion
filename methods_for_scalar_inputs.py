@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.decomposition import PCA
-from kernels import *
 import tensorflow as tf
 import gpflow
 from gpflow.kernels import SquaredExponential
@@ -9,74 +8,59 @@ import pywt
 from scipy.stats import qmc
 from scipy.spatial.distance import pdist
 
-def L2_norm(f,g,t):
-    dt=t[1]-t[0]
-    return np.sum((f(t)-g(t))**2)*dt
-
-class FunctionalL2Kernel(gpflow.kernels.Kernel):
-    """
-    Noyau k(X,Y) = σ² exp(-Σ_i ||f_i - g_i||_L2²)
-    où chaque X[i] est un ensemble de fonctions fi(t) discrétisées.
-    """
-    def __init__(self, variance=1.0,lengthscale=1.0):
-        super().__init__()
-        self.lengthscale = gpflow.Parameter(lengthscale, transform=gpflow.utilities.positive())
-        self.variance = gpflow.Parameter(variance, transform=gpflow.utilities.positive())
-
-    def _L2_distance(self, F, G):
-        # F et G ont shape (n_points_t, n_funcs=8)
-        diff = F - G
-        dt = 1.0 / tf.cast(tf.shape(F)[0], tf.float64)
-        # ∑₁⁸ ∫ (f_i - g_i)² ≈ ∑₁⁸ ∑ₜ (f_i(t)-g_i(t))² * dt
-        return tf.reduce_sum(diff**2) * dt
-
-    def K(self, X, Y=None):
-        if Y is None:
-            Y = X
-
-        X = tf.reshape(X, (tf.shape(X)[0], 8, -1))
-        Y = tf.reshape(Y, (tf.shape(Y)[0], 8, -1))
-
-        X_exp = tf.expand_dims(X, 1)  # [N,1,8,n_t]
-        Y_exp = tf.expand_dims(Y, 0)  # [1,M,8,n_t]
-        diff = X_exp - Y_exp
-        dt = 1.0 / tf.cast(tf.shape(X)[-1], tf.float64)
-        l2 = tf.reduce_sum(diff**2, axis=[2,3]) * dt  # [N,M]
-        return (self.variance**2) * tf.exp(-l2 / (self.lengthscale**2))
-
-    def K_diag(self, X):
-        return tf.fill([tf.shape(X)[0]], tf.squeeze(self.variance ** 2))
+def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
+    #bounds : array of dimension (2 x n_dim) with lower and upper bounds
+    rng = np.random.default_rng(seed)
+    sampler = qmc.LatinHypercube(d=n_dim, seed=seed)
+    sample = sampler.random(n=n_samples)
+    
+    def min_dist(X):
+        # critère maximin : plus grande distance minimale possible
+        return np.min(pdist(X))
+    
+    best_sample = sample.copy()
+    best_score = min_dist(best_sample)
+    
+    T0 = 1.0  # température initiale
+    alpha = 0.99  # taux de refroidissement
+    T = T0
+    
+    for _ in range(n_iter):
+        # échange de deux valeurs dans une dimension aléatoire
+        new_sample = best_sample.copy()
+        i, j = rng.integers(0, n_samples, 2)
+        k = rng.integers(0, n_dim)  
+        new_sample[i, k], new_sample[j, k] = new_sample[j, k], new_sample[i, k]
+        
+        new_score = min_dist(new_sample)
+        delta = new_score - best_score
+        
+        # acceptation (recuit simulé)
+        if delta > 0 or np.exp(delta / T) > rng.random():
+            best_sample = new_sample
+            best_score = new_score
+        
+        T *= alpha  # refroidissement
+    
+    return qmc.scale(best_sample, bounds[0], bounds[1])
 
 
-def GP(x_train, x_test, y_train, t, n_pc, param):
+def GP(x_train, x_test, y_train, n_pc, param):
     means = []
-    
-    X_train = np.zeros((x_train.shape[0],x_train.shape[1],len(t)))
-    X_test = np.zeros((x_test.shape[0],x_test.shape[1],len(t)))
-    for i in range(x_train.shape[0]):
-        for j in range(x_train.shape[1]):
-            X_train [i,j,:] = x_train[i,j](t)
-    for i in range(x_test.shape[0]):
-        for j in range(x_test.shape[1]):
-            X_test [i,j,:] = x_test[i,j](t)
-                  
+
     # Conversion numpy -> tensorflow
-    X_train_tf = tf.convert_to_tensor(X_train, dtype=tf.float64)
-    X_test_tf  = tf.convert_to_tensor(X_test, dtype=tf.float64)
-    
-    X_train_flat = tf.reshape(X_train_tf, (X_train_tf.shape[0], -1))
-    X_test_flat  = tf.reshape(X_test_tf,  (X_test_tf.shape[0],  -1))
+    X_train = tf.convert_to_tensor(x_train, dtype=tf.float64)
+    X_test  = tf.convert_to_tensor(x_test, dtype=tf.float64)
 
     for i in range(n_pc):
-        print("\n--- Entraînement du modèle GP pour la composante principale ", i+1, "---")
         Y_train = tf.convert_to_tensor(y_train[:, i:i+1], dtype=tf.float64)
-        
-        # Définition du kernel : (variance * RBF(length_scale))
-        kernel = FunctionalL2Kernel(lengthscale=param[0], variance=param[1]**2)
-        
+
+        # Définition du kernel : (variance * RBF(length_scale)) + bruit blanc
+        kernel = gpflow.kernels.SquaredExponential(lengthscales=param[0], variance=param[1]**2) + gpflow.kernels.White(variance=1e-6)
+
         # Modèle GP régressif
-        model = gpflow.models.GPR(data=(X_train_flat, Y_train),kernel=kernel,mean_function=Constant())
-        print("Modèle GP créé pour la composante principale ", i+1)
+        model = gpflow.models.GPR(data=(X_train, Y_train),kernel=kernel,mean_function=Constant())
+
         # Optimisation des hyperparamètres
         opt = gpflow.optimizers.Scipy()
         opt.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))
@@ -87,14 +71,13 @@ def GP(x_train, x_test, y_train, t, n_pc, param):
         gpflow.utilities.print_summary(model)
         
         # Prédiction
-        mean_i, var_i = model.predict_f(X_test_flat)
+        mean_i, var_i = model.predict_f(X_test)
         means.append(mean_i.numpy().flatten())
-        print("Prédiction effectuée pour la composante principale ", i+1)
 
     mean = np.column_stack(means)
     return mean
 
-def ACP(x_train,x_test,y_train,t,n_pc,param):
+def ACP(x_train,x_test,y_train,n_pc,param):
     #Centrage des données
     y_bar = np.mean(y_train,axis=0, keepdims=True)
     y_train_norm = y_train - y_bar
@@ -110,7 +93,7 @@ def ACP(x_train,x_test,y_train,t,n_pc,param):
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
     
     #Prédiction GP sur les composantes principales
-    Y_mean_GP = GP(x_train,x_test,Y_train_pca,t,n_pc,param)
+    Y_mean_GP = GP(x_train,x_test,Y_train_pca,n_pc,param)
     
     #Reconstruction
     Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
@@ -148,7 +131,7 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
 
     return Bx, By, Bxy
 
-def Bsplines_ACP(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
+def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     print("taille du vecteur de y_train:",y_train.shape)
     n_points = y_train.shape[1]   # ex: 4096
     
@@ -170,7 +153,7 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
     C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
     
     #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
-    C_reconstruct = ACP(x_train,x_test,C,t,n_pc,param)
+    C_reconstruct = ACP(x_train,x_test,C,n_pc,param)
     print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
     
     # reconstruction dans l'espace de départ
@@ -179,7 +162,7 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
 
     return Y_test_reconstruct
 
-def ACPF_Ondelettes(x_train,x_test,y_train,t,n_pc,param,K_tilde=0,p=0,J=1):
+def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
 
     n_samples, signal_length = y_train.shape
     wavelet = "db4"
@@ -222,7 +205,7 @@ def ACPF_Ondelettes(x_train,x_test,y_train,t,n_pc,param,K_tilde=0,p=0,J=1):
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,t,n_pc,param)
+    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,n_pc,param)
 
     #Moyenne empirique pour les coefficients non sélectionnés
     coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean,axis=0,keepdims=True)
