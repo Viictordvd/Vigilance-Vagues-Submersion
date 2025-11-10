@@ -1,0 +1,28 @@
+Context:
+
+Vigilance Vague Submersion -> High surf and coastal flooding warning
+littoral -> coastline / coastal area
+houle -> swell / wave surge
+marée -> tide
+tempête -> storm
+inondation -> flooding
+mise en danger -> endangerment / putting at risk
+populations locales -> local populations
+élévation du niveau de la mer -> sea level rise
+système d'alerte -> warning system / alert system
+usage en temps réel -> real-time use
+cartes de submersion -> flooding maps / inundation maps
+
+
+Maths:
+
+Modèle numérique -> numerical model
+Métamodélisation -> metamodeling / surrogate modeling
+Processus Gaussien -> Gaussian process
+séries temporelles -> time series
+entrées/sorties fonctionnelles -> functional inputs/outputs
+
+
+
+SHOM = Service Hydrographique et Océanographique de la Marine
+Météo-France
