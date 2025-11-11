@@ -2,8 +2,7 @@ import numpy as np
 import tensorflow as tf
 import gpflow
 from gpflow.mean_functions import Constant
-
-
+from validation_gp import validation_GP
 class FunctionalL2Kernel(gpflow.kernels.Kernel):
     """
     Noyau k(X,Y) = σ² exp(-Σ_i ||f_i - g_i||_L2²)
@@ -121,6 +120,10 @@ def GP(x_train, x_test, y_train, t, n_pc, param):
         print("Optimisation terminée. Les hyperparamètres optimisés sont :")
         gpflow.utilities.print_summary(model)
         
+        # Validation du modèle
+        print(f"-----Diagnostics pour la validation du modèle de la composante {i+1}-----")
+        validation_GP(model.kernel.K(X_train_flat), Y_train)
+
         # Prédiction sur les nouvelles entrées
         mean_i, var_i = model.predict_f(X_test_flat)
         means.append(mean_i.numpy().flatten())  # conversion TF → numpy
