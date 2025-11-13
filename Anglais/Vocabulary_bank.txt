@@ -5,7 +5,7 @@ littoral -> coastline / coastal area
 houle -> swell / wave surge
 marée -> tide
 tempête -> storm
-inondation -> flooding
+inondation -> flooding  (like blood)
 mise en danger -> endangerment / putting at risk
 populations locales -> local populations
 élévation du niveau de la mer -> sea level rise

@@ -1,23 +1,12 @@
-Understanding the phenomenon of coastal wave flooding is essential to assess the risks faced by coastal areas.
-This type of flooding occurs when strong waves, high tides, and sometimes storms combine to temporarily or permanently submerge low-lying coastal zones.
-
-The consequences can be serious:
-– accelerated erosion of beaches and dunes,
-– damage to infrastructure,
-– loss of natural habitats,
-– and risks for local populations.
-
-By analyzing and modeling this phenomenon, we can anticipate impacts, design better coastal protections, and develop prevention strategies that contribute to the safety of coastal communities and the adaptation to climate change and sea-level rise.
+With climate change causing more frequent extreme weather events, the need for accurate and rapid coastal flooding forecasts has never been more critical.
 
 In France, coastal flooding warnings are part of the Vigilance Vagues Submersion (VVS) system, developed by SHOM and operated by Météo-France.
 These systems rely on numerical models that simulate marine hazards several days in advance.
-However, improving the accuracy of forecasts requires more complex models, which are too computationally demanding to be used in real time.
+
+However, improving the accuracy of forecasts requires more complex models, which demand too much computation to be used in real time.
 
 To overcome this limitation, scientists are developing reduced models, also called metamodels.
 These metamodels can produce results almost instantly, using simplified input data such as wind speed and direction, tide, and sea level.
-They estimate the water level at key coastal points and help authorities react more quickly in case of an alert.
 
 The IMT and SHOM are currently developing a high-performance numerical model called TOLOSA, which will make it possible to run a large number of detailed simulations.
-This provides the opportunity to build advanced metamodels capable of handling functional input data (like time series) and producing functional outputs such as flooding maps.
-
-The goal of this project is to develop the software component that will allow the construction of such metamodels — a key step toward predicting, locally and in real time, the risk of coastal flooding.
+This provides the opportunity to build advanced metamodels capable of handling functional input data (like time series) and producing functional outputs such as flooding maps. 
