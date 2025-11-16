@@ -12,6 +12,19 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         super().__init__()
         self.lengthscale = gpflow.Parameter(lengthscale, transform=gpflow.utilities.positive())
         self.variance = gpflow.Parameter(variance, transform=gpflow.utilities.positive())
+        self.alpha = gpflow.Parameter(0.1, transform=gpflow.utilities.positive())
+
+    #Calcul la norme de Sobolev
+    def _L2_and_derivative_distance(self, X, Y):
+        dX = X[..., 1:] - X[..., :-1]
+        dY = Y[..., 1:] - Y[..., :-1]
+
+        dt = 1.0 / tf.cast(tf.shape(X)[-1], tf.float64)
+
+        l2 = tf.reduce_sum((X - Y)**2, axis=[2,3]) * dt
+        l2_deriv = tf.reduce_sum((dX - dY)**2, axis=[2,3]) * dt
+
+        return l2 + self.alpha * l2_deriv
     
     def _chunked_K(self, X, Y, chunk_size=50):
         """
@@ -60,7 +73,7 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         
         #On calcule
         dt = 1.0 / tf.cast(tf.shape(X)[-1], tf.float64)                     # Pas de discrétisation temporelle
-        l2 = tf.reduce_sum((X_exp - Y_exp)**2, axis=[2,3]) * dt             # Calcul de ||X-Y||_L2²
+        l2 = self._L2_and_derivative_distance(X_exp,Y_exp)            # Calcul de ||X-Y||_L2²
         return (self.variance ** 2) * tf.exp(-l2 / (self.lengthscale ** 2)) # Noyau exponentiel : K = σ² * exp(- ||X-Y||_L2² / ℓ²)
     
     # Fonction principale appelée par gpflow. Renvoie la matrice de Gram K(X, Y). Si Y n'est pas fourni, on calcule K(X, X).
