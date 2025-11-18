@@ -77,25 +77,9 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
 def GP(x_train, x_test, y_train, t, n_pc, param):
     means = []  # Liste des moyennes prédites pour chaque composante principale
     
-    # Évaluation des fonctions aux instants t pour obtenir des tenseurs numpy
-    n_train, n_inputs = x_train.shape  # n_inputs = 8
-    n_test = x_test.shape[0]
-    n_time = len(t)
-    
-    train_eval = np.zeros((n_train, n_inputs, n_time)) # Tenseurs pour stocker 
-    test_eval  = np.zeros((n_test,  n_inputs, n_time)) # les évaluations f_i(t)
-    
-    for i in range(n_train): # On évalue chaque fonction sur la grille t
-        for j in range(n_inputs):
-            train_eval[i, j, :] = x_train[i, j](t)
-
-    for i in range(n_test):
-        for j in range(n_inputs):
-            test_eval[i, j, :] = x_test[i, j](t)
-                  
     # Conversion numpy -> tensorflow
-    X_train_tf = tf.convert_to_tensor(train_eval, dtype=tf.float64)
-    X_test_tf  = tf.convert_to_tensor(test_eval, dtype=tf.float64)
+    X_train_tf = tf.convert_to_tensor(x_train, dtype=tf.float64)
+    X_test_tf  = tf.convert_to_tensor(x_test, dtype=tf.float64)
     
     # Aplatissement pour compatibilité avec gpflow, gpflow attend des entrées [N, D], on a donc besoin de "vectoriser" nos fonctions : chaque observation devient un vecteur concaténé contenant toutes les valeurs discrètes des 8 fonctions
     # On reconstruira les fonctions au sein du noyau
