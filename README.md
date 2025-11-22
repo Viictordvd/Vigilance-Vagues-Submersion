@@ -24,7 +24,7 @@ Pour la présentation du projet, merci de lire le fichier "Présentation du proj
    Ce notebook fait appel à différentes fonctions que l'on retrouve dans les fichiers python *methods_for_scalar_input* et *Design of experiment*.
 
    - Le notebook *Campbell_functionnal_input* est le second que nous avons écrit. Il a pour objectif de reprendre le premier, mais cette fois avec des données d'entrée fonctionnelles. Notre simulateur prend maintenant en entrée des fonctions qui dépendent du temps et recrache toujours un scalaire.
-   Ce notebook fait appel à différentes fonctions que l'on retrouve dans les fichiers python *ACPF*, *Gaussian_processes* et *validation_gp*.
+   Ce notebook fait appel à différentes fonctions que l'on retrouve dans les fichiers python *model_class*, *ACPF*, *Gaussian_processes* et *validation_gp*.
 
    - Les autres notebooks ont été écrits pour nous aider à comprendre les outils que nous manipulons. Ils n’ont pas d’utilité directe, mais facilitent la compréhension (ils méritent d'être mis à jour et commenté, on fera si on a le temps)
 
