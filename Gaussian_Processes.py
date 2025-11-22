@@ -88,17 +88,16 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         return tf.fill([tf.shape(X)[0]], tf.squeeze(self.variance ** 2))
 
 # Fonction principale pour la régression par processus gaussiens avec entrées fonctionnelles
-def GP(x_train, x_test, y_train, n_pc, param,verbose=False):
-    means = []  # Liste des moyennes prédites pour chaque composante principale
+def GP_train(x_train, y_train, n_pc, param,verbose=False):
     
     # Conversion numpy -> tensorflow
     X_train_tf = tf.convert_to_tensor(x_train, dtype=tf.float64)
-    X_test_tf  = tf.convert_to_tensor(x_test, dtype=tf.float64)
     
     # Aplatissement pour compatibilité avec gpflow, gpflow attend des entrées [N, D], on a donc besoin de "vectoriser" nos fonctions : chaque observation devient un vecteur concaténé contenant toutes les valeurs discrètes des 8 fonctions
     # On reconstruira les fonctions au sein du noyau
     X_train_flat = tf.reshape(X_train_tf, (X_train_tf.shape[0], -1))
-    X_test_flat  = tf.reshape(X_test_tf,  (X_test_tf.shape[0],  -1))
+
+    models = [] #Liste des modèles GP de chacune des composantes principales
 
     for i in range(n_pc):
         print("\n--- Entraînement du modèle GP pour la composante principale ", i+1, "---")
@@ -122,11 +121,21 @@ def GP(x_train, x_test, y_train, n_pc, param,verbose=False):
         if (verbose):
             print(f"-----Diagnostics pour la validation du modèle de la composante {i+1}-----")
             validation_GP(model.kernel.K(X_train_flat), Y_train)
+        models.append(model)
 
+    return models
+    
+
+def GP_predict(models, x_test, n_pc):
+        means = []  # Liste des moyennes prédites pour chaque composante principale
+        # Conversion numpy -> tensorflow
+        X_test_tf  = tf.convert_to_tensor(x_test, dtype=tf.float64)
+        #Reshape
+        X_test_flat  = tf.reshape(X_test_tf,  (X_test_tf.shape[0],  -1))
         # Prédiction sur les nouvelles entrées
-        mean_i, _ = model.predict_f(X_test_flat)
-        means.append(mean_i.numpy().flatten())  # conversion TF → numpy
-        print("Prédiction effectuée pour la composante principale ", i+1)
-
-    mean = np.column_stack(means) # Chaque colonne correspond à la prédiction d’une composante principale
-    return mean
+        for i in range(n_pc):
+            mean_i, _ = models[i].predict_f(X_test_flat)
+            means.append(mean_i.numpy().flatten())  # conversion TF → numpy
+            print("Prédiction effectuée pour la composante principale ", i+1)
+        mean = np.column_stack(means) # Chaque colonne correspond à la prédiction d’une composante principale
+        return mean

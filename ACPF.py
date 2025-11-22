@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 
 import Gaussian_Processes as gp
 
-def ACP(x_train,x_test,y_train,n_pc,param):
+def ACP_train(x_train,y_train,n_pc,param,verbose=False):
     #Centrage des données
     y_bar = np.mean(y_train,axis=0, keepdims=True)
     y_train_norm = y_train - y_bar
@@ -19,9 +19,13 @@ def ACP(x_train,x_test,y_train,n_pc,param):
     print("Variance globale expliquée :",np.sum(pca.explained_variance_ratio_))
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
     
-    #Prédiction GP sur les composantes principales
-    Y_mean_GP = gp.GP(x_train,x_test,Y_train_pca,n_pc,param)
-    
+    #Entrainement GP sur les composantes principales
+    models = gp.GP_train(x_train,Y_train_pca,n_pc,param,verbose)
+    return models,V,y_bar
+
+def ACP_predict(models,x_test,n_pc,V,y_bar):
+    #Prédiction par GP
+    Y_mean_GP = gp.GP_predict(models,x_test,n_pc)
     #Reconstruction
     Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
     return Y_test_reconstruct
@@ -56,7 +60,7 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
 
     return Bx, By, Bxy
 
-def B_Splines(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
+def B_Splines_train(x_train, y_train,t1, t2, n_pc, param,verbose, degree=1):
     print("taille du vecteur de y_train:",y_train.shape)
     n_points = y_train.shape[1]   # ex: 4096
     
@@ -78,7 +82,11 @@ def B_Splines(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
     
     #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
-    C_reconstruct = ACP(x_train,x_test,C,n_pc,param)
+    models, V, y_bar = ACP_train(x_train,C,n_pc,param,verbose)
+    return models, V, y_bar, Bxy
+
+def B_Splines_predict(models,x_test, n_pc,V,y_bar,Bxy):
+    C_reconstruct = ACP_predict(models,x_test,n_pc,V,y_bar)
     print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
     
     # reconstruction dans l'espace de départ
@@ -87,7 +95,7 @@ def B_Splines(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
 
     return Y_test_reconstruct
 
-def Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
+def Ondelettes_train(x_train,y_train,n_pc,param,verbose,K_tilde=0,p=0,J=1):
 
     n_samples, signal_length = y_train.shape
     wavelet = "db4"
@@ -130,13 +138,20 @@ def Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,n_pc,param)
+    models,V,y_bar = ACP_train(x_train,coeffs_wavelets_ACP,n_pc,param,verbose)
+    return models,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean
+
+def Ondelettes_predict(models,x_test,n_pc,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean):
+    wavelet = "db4"
+     #ACP sur les coefficients d'ondelettes sélectionnés
+    wavelets_test_reconstruct = ACP_predict(models, x_test,n_pc,V,y_bar)
 
     #Moyenne empirique pour les coefficients non sélectionnés
     coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean,axis=0,keepdims=True)
 
     #Reconstruction de la décomposition en ondelettes pour le jeu de test
     n_test = x_test.shape[0]
+    K = sum(coeffs_shapes)
     wavelets_test_reconstruct_total = np.zeros((n_test, K), dtype=float)
     wavelets_test_reconstruct_total[:,indices_ACP] = wavelets_test_reconstruct
     wavelets_test_reconstruct_total[:, indices_mean] = coeffs_wavelets_mean_reconstruct
