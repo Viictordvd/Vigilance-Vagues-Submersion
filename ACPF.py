@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 
 import Gaussian_Processes as gp
 
-def ACP(x_train,x_test,y_train,t,n_pc,param):
+def ACP(x_train,x_test,y_train,n_pc,param):
     #Centrage des données
     y_bar = np.mean(y_train,axis=0, keepdims=True)
     y_train_norm = y_train - y_bar
@@ -20,7 +20,7 @@ def ACP(x_train,x_test,y_train,t,n_pc,param):
     print("Taille du jeu d'entrainement transformé par ACP :", Y_train_pca.shape)
     
     #Prédiction GP sur les composantes principales
-    Y_mean_GP = gp.GP(x_train,x_test,Y_train_pca,t,n_pc,param)
+    Y_mean_GP = gp.GP(x_train,x_test,Y_train_pca,n_pc,param)
     
     #Reconstruction
     Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
@@ -56,7 +56,7 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
 
     return Bx, By, Bxy
 
-def B_Splines(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
+def B_Splines(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
     print("taille du vecteur de y_train:",y_train.shape)
     n_points = y_train.shape[1]   # ex: 4096
     
@@ -78,7 +78,7 @@ def B_Splines(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
     C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
     
     #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
-    C_reconstruct = ACP(x_train,x_test,C,t,n_pc,param)
+    C_reconstruct = ACP(x_train,x_test,C,n_pc,param)
     print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
     
     # reconstruction dans l'espace de départ
@@ -87,7 +87,7 @@ def B_Splines(x_train, x_test, y_train,t1, t2, t, n_pc, param, degree=1):
 
     return Y_test_reconstruct
 
-def Ondelettes(x_train,x_test,y_train,t,n_pc,param,K_tilde=0,p=0,J=1):
+def Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
 
     n_samples, signal_length = y_train.shape
     wavelet = "db4"
@@ -130,7 +130,7 @@ def Ondelettes(x_train,x_test,y_train,t,n_pc,param,K_tilde=0,p=0,J=1):
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,t,n_pc,param)
+    wavelets_test_reconstruct = ACP(x_train,x_test,coeffs_wavelets_ACP,n_pc,param)
 
     #Moyenne empirique pour les coefficients non sélectionnés
     coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean,axis=0,keepdims=True)

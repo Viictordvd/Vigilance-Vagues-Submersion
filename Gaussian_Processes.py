@@ -3,6 +3,7 @@ import tensorflow as tf
 import gpflow
 from gpflow.mean_functions import Constant
 from validation_gp import validation_GP
+
 class FunctionalL2Kernel(gpflow.kernels.Kernel):
     """
     Noyau k(X,Y) = σ² exp(-Σ_i ||f_i - g_i||_L2²)
@@ -87,7 +88,7 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         return tf.fill([tf.shape(X)[0]], tf.squeeze(self.variance ** 2))
 
 # Fonction principale pour la régression par processus gaussiens avec entrées fonctionnelles
-def GP(x_train, x_test, y_train, t, n_pc, param):
+def GP(x_train, x_test, y_train, n_pc, param,verbose=False):
     means = []  # Liste des moyennes prédites pour chaque composante principale
     
     # Conversion numpy -> tensorflow
@@ -118,11 +119,12 @@ def GP(x_train, x_test, y_train, t, n_pc, param):
         gpflow.utilities.print_summary(model)
         
         # Validation du modèle
-        print(f"-----Diagnostics pour la validation du modèle de la composante {i+1}-----")
-        validation_GP(model.kernel.K(X_train_flat), Y_train)
+        if (verbose):
+            print(f"-----Diagnostics pour la validation du modèle de la composante {i+1}-----")
+            validation_GP(model.kernel.K(X_train_flat), Y_train)
 
         # Prédiction sur les nouvelles entrées
-        mean_i, var_i = model.predict_f(X_test_flat)
+        mean_i, _ = model.predict_f(X_test_flat)
         means.append(mean_i.numpy().flatten())  # conversion TF → numpy
         print("Prédiction effectuée pour la composante principale ", i+1)
 
