@@ -25,12 +25,13 @@ def ACP_train(x_train,y_train,n_pc,param,verbose=False):
 
 def ACP_predict(models,x_test,n_pc,V,y_bar):
     #Prédiction par GP
+    print("Predict ACP")
     Y_mean_GP = gp.GP_predict(models,x_test,n_pc)
     #Reconstruction
     Y_test_reconstruct = Y_mean_GP @ V.T + y_bar
     return Y_test_reconstruct
 
-def bspline_basis_matrices(t1, t2, x, y, degree=1):
+def bspline_basis_matrices(noeuds, domaine, degree=1):
     #Évalue la B-spline linéaire B_i(xx) pour un vecteur de noeuds tt
     def B(i, xx, tt):
         yy = np.zeros_like(xx)
@@ -45,34 +46,27 @@ def bspline_basis_matrices(t1, t2, x, y, degree=1):
         return yy
 
     #Matrices 1D
-    nBx = len(t1) - degree - 1
-    nBy = len(t2) - degree - 1
-    Bx = np.zeros((len(x), nBx))
-    By = np.zeros((len(y), nBy))
+    nBx = len(noeuds[0]) - degree - 1
+    Bd = np.array([B(j, domaine[0], noeuds[0]) for j in range(nBx)]).T
+    print(Bd.shape)
+    for i in range(1,len(noeuds)):
+        t=noeuds[i]
+        print(t.shape)
+        x=domaine[i]
+        nBt = len(t) - degree - 1  
+        Bt = np.array([B(i, x, t) for i in range(nBt)]).T
+        Bd = np.kron(Bd, Bt)
+    print(Bd.shape)
+    return Bd
 
-    for i in range(nBx):
-        Bx[:, i] = B(i, x, t1)
-    for j in range(nBy):
-        By[:, j] = B(j, y, t2)
-
-    #Matrice tensorielle 2D (produit de Kronecker)
-    Bxy = np.kron(By, Bx)
-
-    return Bx, By, Bxy
-
-def B_Splines_train(x_train, y_train,t1, t2, n_pc, param,verbose, degree=1):
-    print("taille du vecteur de y_train:",y_train.shape)
+def B_Splines_train(x_train, y_train,noeuds,domaine,n_pc, param,verbose, degree=1):
     n_points = y_train.shape[1]   # ex: 4096
     
-    #construire la grille 1D (on suppose grille régulière sur [-90,90] pour Z1,Z2)
-    n_grid = int(np.sqrt(n_points))
-    assert n_grid * n_grid == n_points, "y_train doit correspondre à une grille carrée"
-    z = np.linspace(-90, 90, n_grid)
-
     #construire matrices B-spline
-    _, _, Bxy = bspline_basis_matrices(t1, t2, z, z, degree=degree)
+    Bxy = bspline_basis_matrices(noeuds,domaine,degree=degree)
     
     # Bxy : (n_points, n_basis)
+    print(Bxy.shape)
     n_basis = Bxy.shape[1]
     print("taille de la base B-spline :",n_basis)
 
@@ -80,19 +74,15 @@ def B_Splines_train(x_train, y_train,t1, t2, n_pc, param,verbose, degree=1):
     # solve Bxy @ c = y  -> c = lstsq(Bxy, y)
     # y_train.T shape (n_points, n_train) -> lstsq returns (n_basis, n_train)
     C = np.linalg.lstsq(Bxy, y_train.T, rcond=None)[0].T
-    
+    print(C.shape)
     #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
     models, V, y_bar = ACP_train(x_train,C,n_pc,param,verbose)
     return models, V, y_bar, Bxy
 
 def B_Splines_predict(models,x_test, n_pc,V,y_bar,Bxy):
-    C_reconstruct = ACP_predict(models,x_test,n_pc,V,y_bar)
-    print("taille du vecteur de C_reconstruct:",C_reconstruct.shape)
-    
-    # reconstruction dans l'espace de départ
-    Y_test_reconstruct = C_reconstruct @ Bxy.T   # (n_test, n_points)
-    print("taille du vecteur de Y_test_reconstruct:",Y_test_reconstruct.shape)
-
+    print("Predict B-Splines")
+    C_reconstruct = ACP_predict(models,x_test,n_pc,V,y_bar) # reconstruction dans l'espace de départ
+    Y_test_reconstruct = C_reconstruct @ Bxy.T              # (n_test, n_points)
     return Y_test_reconstruct
 
 def Ondelettes_train(x_train,y_train,n_pc,param,verbose,K_tilde=0,p=0,J=1):
@@ -142,6 +132,7 @@ def Ondelettes_train(x_train,y_train,n_pc,param,verbose,K_tilde=0,p=0,J=1):
     return models,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean
 
 def Ondelettes_predict(models,x_test,n_pc,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean):
+    print("Predict Ondelettes")
     wavelet = "db4"
      #ACP sur les coefficients d'ondelettes sélectionnés
     wavelets_test_reconstruct = ACP_predict(models, x_test,n_pc,V,y_bar)

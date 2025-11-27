@@ -25,14 +25,15 @@ class ACPF_Ondelettes():
         return ACPF.Ondelettes_predict(self.models,x_test,self.n_pc,self.V,self.y_bar,self.coeffs_wavelets_mean,self.coeffs_shapes,self.signal_length,self.indices_ACP,self.indices_mean)
     
 class ACPF_Bsplines():
-    def __init__(self,n_pc,param,t1,t2,degree=1):
+    def __init__(self,n_pc,param,noeuds,domaine,degree=1):
         self.n_pc = n_pc
         self.param = param
         self.degree = degree
-        self.t1 = t1
-        self.t2 = t2
+        self.noeuds = noeuds
+        self.domaine=domaine
+        
     def train(self,x_train,y_train,verbose=False):
-        self.models, self.V, self.y_bar, self.Bxy = ACPF.B_Splines_train(x_train,y_train,self.t1,self.t2,self.n_pc,self.param,verbose,self.degree)
+        self.models, self.V, self.y_bar, self.Bxy = ACPF.B_Splines_train(x_train,y_train,self.noeuds,self.domaine,self.n_pc,self.param,verbose,self.degree)
 
     def predict(self,x_test):
         return ACPF.B_Splines_predict(self.models,x_test,self.n_pc,self.V,self.y_bar,self.Bxy)
