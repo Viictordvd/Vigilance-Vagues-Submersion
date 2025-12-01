@@ -74,7 +74,7 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         
         #On calcule
         dt = 1.0 / tf.cast(tf.shape(X)[-1], tf.float64)                     # Pas de discrétisation temporelle
-        l2 = self._L2_and_derivative_distance(X_exp,Y_exp)            # Calcul de ||X-Y||_L2²
+        l2 = self._L2_and_derivative_distance(X_exp,Y_exp)                  # Calcul de ||X-Y||_L2²
         return (self.variance ** 2) * tf.exp(-l2 / (self.lengthscale ** 2)) # Noyau exponentiel : K = σ² * exp(- ||X-Y||_L2² / ℓ²)
     
     # Fonction principale appelée par gpflow. Renvoie la matrice de Gram K(X, Y). Si Y n'est pas fourni, on calcule K(X, X).
@@ -89,9 +89,7 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
 
 # Fonction principale pour la régression par processus gaussiens avec entrées fonctionnelles
 def GP_train(x_train, y_train, n_pc, param,verbose=False):
-    
-    # Conversion numpy -> tensorflow
-    X_train_tf = tf.convert_to_tensor(x_train, dtype=tf.float64)
+    X_train_tf = tf.convert_to_tensor(x_train, dtype=tf.float64) # Conversion numpy -> tensorflow
     
     # Aplatissement pour compatibilité avec gpflow, gpflow attend des entrées [N, D], on a donc besoin de "vectoriser" nos fonctions : chaque observation devient un vecteur concaténé contenant toutes les valeurs discrètes des 8 fonctions
     # On reconstruira les fonctions au sein du noyau
@@ -113,29 +111,26 @@ def GP_train(x_train, y_train, n_pc, param,verbose=False):
         print("Modèle GP créé pour la composante principale ", i+1,". Optimisation des hyperparamètres...")
         # Optimisation des hyperparamètres
         opt = gpflow.optimizers.Scipy()
-        opt.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))
-        print("Optimisation terminée. Les hyperparamètres optimisés sont :")
-        gpflow.utilities.print_summary(model)
-        
-        # Validation du modèle
-        if (verbose):
+        opt.minimize(model.training_loss, model.trainable_variables, options=dict(maxiter=100))    
+        print("Optimisation terminée.")
+        models.append(model)
+        if verbose:
+            print("Les hyperparamètres optimisés sont :")
+            gpflow.utilities.print_summary(model)
             print(f"-----Diagnostics pour la validation du modèle de la composante {i+1}-----")
             validation_GP(model.kernel.K(X_train_flat), Y_train)
-        models.append(model)
 
     return models
     
 
 def GP_predict(models, x_test, n_pc):
+        print("Prédiction en cours...")
         means = []  # Liste des moyennes prédites pour chaque composante principale
-        # Conversion numpy -> tensorflow
-        X_test_tf  = tf.convert_to_tensor(x_test, dtype=tf.float64)
-        #Reshape
-        X_test_flat  = tf.reshape(X_test_tf,  (X_test_tf.shape[0],  -1))
-        # Prédiction sur les nouvelles entrées
-        for i in range(n_pc):
+        X_test_tf  = tf.convert_to_tensor(x_test, dtype=tf.float64)      # Conversion numpy -> tensorflow
+        X_test_flat  = tf.reshape(X_test_tf,  (X_test_tf.shape[0],  -1)) # Reshape
+        
+        for i in range(n_pc): # Prédiction sur les nouvelles entrées
             mean_i, _ = models[i].predict_f(X_test_flat)
             means.append(mean_i.numpy().flatten())  # conversion TF → numpy
-            print("Prédiction effectuée pour la composante principale ", i+1)
         mean = np.column_stack(means) # Chaque colonne correspond à la prédiction d’une composante principale
         return mean
