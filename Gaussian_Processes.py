@@ -9,12 +9,12 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
     Noyau k(X,Y) = σ² exp(-Σ_i ||f_i - g_i||_L2²)
     où chaque X[i] est un ensemble de fonctions fi(t) discrétisées.
     """
-    def __init__(self, variance=1.0,lengthscale=1.0):
+    def __init__(self, variance=1.0,lengthscale=1.0, n_entries=8):
         super().__init__()
         self.lengthscale = gpflow.Parameter(lengthscale, transform=gpflow.utilities.positive())
         self.variance = gpflow.Parameter(variance, transform=gpflow.utilities.positive())
         self.alpha = gpflow.Parameter(0.1, transform=gpflow.utilities.positive())
-
+        self.n_entries = n_entries
     #Calcul la norme de Sobolev
     def _L2_and_derivative_distance(self, X, Y):
         dX = X[..., 1:] - X[..., :-1]
@@ -63,8 +63,8 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
           - K : matrice de Gram de forme [N, M] avec K_ij = k(X_i, Y_j)
         """
         # On redimensionne : (N, 8, T)
-        X = tf.reshape(X, (tf.shape(X)[0], 8, -1))
-        Y = tf.reshape(Y, (tf.shape(Y)[0], 8, -1))
+        X = tf.reshape(X, (tf.shape(X)[0], self.n_entries, -1))
+        Y = tf.reshape(Y, (tf.shape(Y)[0], self.n_entries, -1))
         
         # On ajoute des dimensions pour pouvoir diffuser les soustractions :
         #  X_exp : [N, 1, 8, T]
@@ -88,9 +88,9 @@ class FunctionalL2Kernel(gpflow.kernels.Kernel):
         return tf.fill([tf.shape(X)[0]], tf.squeeze(self.variance ** 2))
 
 # Fonction principale pour la régression par processus gaussiens avec entrées fonctionnelles
-def GP_train(x_train, y_train, n_pc, param,verbose=False):
+def GP_train(x_train, y_train, n_pc, param,kernel_fn=None,verbose=False):
+    n_entries = x_train.shape[1]
     X_train_tf = tf.convert_to_tensor(x_train, dtype=tf.float64) # Conversion numpy -> tensorflow
-    
     # Aplatissement pour compatibilité avec gpflow, gpflow attend des entrées [N, D], on a donc besoin de "vectoriser" nos fonctions : chaque observation devient un vecteur concaténé contenant toutes les valeurs discrètes des 8 fonctions
     # On reconstruira les fonctions au sein du noyau
     X_train_flat = tf.reshape(X_train_tf, (X_train_tf.shape[0], -1))
@@ -104,8 +104,18 @@ def GP_train(x_train, y_train, n_pc, param,verbose=False):
         Y_train = tf.convert_to_tensor(y_train[:, i:i+1], dtype=tf.float64)
         
         # On utilise notre noyau "FunctionalL2Kernel" basé sur la distance L² entre fonctions.
-        kernel = FunctionalL2Kernel(lengthscale=param[0], variance=param[1]**2)  # ℓ : échelle de corrélation et σ² : variance du processus
+        #kernel = FunctionalL2Kernel(lengthscale=param[0], variance=param[1]**2)  # ℓ : échelle de corrélation et σ² : variance du processus
         
+        if kernel_fn is None:
+            # noyau par défaut :
+            kernel = FunctionalL2Kernel(lengthscale=param[0],variance=param[1]**2,n_entries=n_entries)
+        elif isinstance(kernel_fn, gpflow.kernels.Kernel):
+            # si un noyau déjà instancié est passé
+            kernel = kernel_fn
+        else:
+            # kernel_fn est supposé être un constructeur → on l’appelle
+            kernel = kernel_fn(param)
+            
         # Modèle GP régressif
         model = gpflow.models.GPR(data=(X_train_flat, Y_train),kernel=kernel,mean_function=Constant()) # moyenne constante (apprise automatiquement)
         print("Modèle GP créé pour la composante principale ", i+1,". Optimisation des hyperparamètres...")

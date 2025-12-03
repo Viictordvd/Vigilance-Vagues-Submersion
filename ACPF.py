@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 
 import Gaussian_Processes as gp
 
-def ACP_train(x_train,y_train,n_pc,param,verbose=False):
+def ACP_train(x_train,y_train,n_pc,param,kernel_fn=None,verbose=False):
     #Centrage des données
     y_bar = np.mean(y_train,axis=0, keepdims=True)
     y_train_norm = y_train - y_bar
@@ -14,7 +14,7 @@ def ACP_train(x_train,y_train,n_pc,param,verbose=False):
     Y_train_pca = pca.fit_transform(y_train_norm)
     V = pca.components_.T #Matrice de projection de l'ACP
     
-    models = gp.GP_train(x_train,Y_train_pca,n_pc,param,verbose) #Entrainement GP sur les composantes principales
+    models = gp.GP_train(x_train,Y_train_pca,n_pc,param,kernel_fn=None,verbose=verbose) #Entrainement GP sur les composantes principales
     
     print("--- Analyse en Composantes Principales ---")
     print("Variance expliquée par les 5 premières composantes :",pca.explained_variance_ratio_)
@@ -52,13 +52,13 @@ def bspline_basis_matrices(noeuds, domaine, degree=1):
         Bd = np.kron(Bd, Bt)
     return Bd
 
-def B_Splines_train(x_train, y_train,noeuds,domaine,n_pc, param,verbose, degree=1):
+def B_Splines_train(x_train, y_train,noeuds,domaine,n_pc, param, degree=1,kernel_fn=None,verbose=False):
     B = bspline_basis_matrices(noeuds,domaine,degree=degree)
     
     # calcul des coefficients C par moindres carrés
     C = np.linalg.lstsq(B, y_train.T, rcond=None)[0].T # solve B @ C = y  -> c = lstsq(B, y)
     
-    models, V, y_bar = ACP_train(x_train,C,n_pc,param,verbose) #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
+    models, V, y_bar = ACP_train(x_train,C,n_pc,param,kernel_fn=None,verbose=False) #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
     return models, V, y_bar, B
 
 def B_Splines_predict(models,x_test, n_pc,V,y_bar,Bxy):
@@ -66,7 +66,7 @@ def B_Splines_predict(models,x_test, n_pc,V,y_bar,Bxy):
     Y_test_reconstruct = C_reconstruct @ Bxy.T              # (n_test, n_points)
     return Y_test_reconstruct
 
-def Ondelettes_train(x_train,y_train,n_pc,param,verbose,K_tilde=0,p=0,J=1):
+def Ondelettes_train(x_train,y_train,n_pc,param,K_tilde=0,p=0,J=1,kernel_fn=None,verbose=False):
     n_samples, signal_length = y_train.shape
     wavelet = "db4"
 
@@ -108,7 +108,7 @@ def Ondelettes_train(x_train,y_train,n_pc,param,verbose,K_tilde=0,p=0,J=1):
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    models,V,y_bar = ACP_train(x_train,coeffs_wavelets_ACP,n_pc,param,verbose)
+    models,V,y_bar = ACP_train(x_train,coeffs_wavelets_ACP,n_pc,param,kernel_fn=None,verbose=False)
     return models,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean
 
 def Ondelettes_predict(models,x_test,n_pc,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean):

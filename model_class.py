@@ -6,8 +6,8 @@ class ACP_classique():
         self.n_pc = n_pc
         self.param = param
     
-    def train(self,x_train,y_train,verbose=False):
-        self.models, self.V, self.y_bar = ACPF.ACP_train(x_train,y_train,self.n_pc,self.param,verbose)
+    def train(self,x_train,y_train,kernel_fn=None,verbose=False):
+        self.models, self.V, self.y_bar = ACPF.ACP_train(x_train,y_train,self.n_pc,self.param,kernel_fn=None,verbose=verbose)
 
     def predict(self,x_test):
         return ACPF.ACP_predict(self.models,x_test,self.n_pc,self.V,self.y_bar)
@@ -18,8 +18,8 @@ class ACPF_Ondelettes():
         self.param = param
         self.p = p 
         self.J = J
-    def train(self,x_train,y_train,verbose=False):
-        self.models,self.V, self.y_bar, self.coeffs_wavelets_mean ,self.coeffs_shapes, self.signal_length ,self.indices_ACP, self.indices_mean = ACPF.Ondelettes_train(x_train,y_train,self.n_pc,self.param,verbose,0,self.p,self.J)
+    def train(self,x_train,y_train,kernel_fn=None,verbose=False):
+        self.models,self.V, self.y_bar, self.coeffs_wavelets_mean ,self.coeffs_shapes, self.signal_length ,self.indices_ACP, self.indices_mean = ACPF.Ondelettes_train(x_train,y_train,self.n_pc,self.param,0,self.p,self.J,kernel_fn=None,verbose=False)
     
     def predict(self,x_test):
         return ACPF.Ondelettes_predict(self.models,x_test,self.n_pc,self.V,self.y_bar,self.coeffs_wavelets_mean,self.coeffs_shapes,self.signal_length,self.indices_ACP,self.indices_mean)
@@ -32,8 +32,8 @@ class ACPF_Bsplines():
         self.noeuds = noeuds
         self.domaine=domaine
         
-    def train(self,x_train,y_train,verbose=False):
-        self.models, self.V, self.y_bar, self.Bxy = ACPF.B_Splines_train(x_train,y_train,self.noeuds,self.domaine,self.n_pc,self.param,verbose,self.degree)
+    def train(self,x_train,y_train,kernel_fn=None,verbose=False):
+        self.models, self.V, self.y_bar, self.Bxy = ACPF.B_Splines_train(x_train,y_train,self.noeuds,self.domaine,self.n_pc,self.param,self.degree,kernel_fn=None,verbose=False)
 
     def predict(self,x_test):
         return ACPF.B_Splines_predict(self.models,x_test,self.n_pc,self.V,self.y_bar,self.Bxy)
