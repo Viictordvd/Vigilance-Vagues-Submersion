@@ -1,4 +1,4 @@
-import ACPF
+import Methodes.ACPF as ACPF
 
 class ACP_classique():
     #Initialisation d'une instance avec les paramètres de la méthode

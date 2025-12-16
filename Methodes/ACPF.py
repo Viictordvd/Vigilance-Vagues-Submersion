@@ -2,7 +2,7 @@ import pywt
 import numpy as np
 from sklearn.decomposition import PCA
 
-import Gaussian_Processes as gp
+import Methodes.Gaussian_Processes as gp
 
 def ACP_train(x_train,y_train,n_pc,param,kernel_fn=None,verbose=False):
     #Centrage des données

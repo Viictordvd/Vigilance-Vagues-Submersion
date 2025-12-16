@@ -6,7 +6,7 @@ from gpflow.mean_functions import Constant
 import pywt
 from scipy.stats import qmc
 from scipy.spatial.distance import pdist
-from validation_gp import validation_GP
+from Methodes.validation_gp import validation_GP
 
 def lhs_optimized(n_samples, n_dim,bounds, n_iter=1000, seed=None):
     #bounds : array of dimension (2 x n_dim) with lower and upper bounds

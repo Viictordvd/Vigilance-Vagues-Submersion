@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import gpflow
 from gpflow.mean_functions import Constant
-from validation_gp import validation_GP
+from Methodes.validation_gp import validation_GP
 
 class FunctionalL2Kernel(gpflow.kernels.Kernel):
     """
