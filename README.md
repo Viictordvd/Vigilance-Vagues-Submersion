@@ -20,6 +20,7 @@ Pour la présentation du projet, merci de lire le fichier "Présentation du proj
    - Le dossier "**Anglais**" contient pour l'instant une banque de mots de vocabulaire ainsi qu'une rapide présentation du projet.
    - Le dossier "**Methodes**" contient les fichiers python dont dépendent les notebooks.
    - Le dossier "**Exemple**" contient des notebooks qui ont été écrits pour nous aider à comprendre les outils que nous manipulons. Ils n’ont pas d’utilité directe, mais facilitent la compréhension (ils méritent d'être mis à jour et commenté, on fera si on a le temps)
-
+   - Les dossiers **Anglais** et le fichier **To_do.txt** ne sont pas à prendre en compte car issus de travaux pour un autre cours (en lien avec le projet) et une liste de chose à faire (à supprimer à la fin du semestre)
+   
 Auteurs : Paul Slisse et Victor Davodeau  
 Sous la direction de : Pascale Noble, Olivier Roustant et Remy Baraille

@@ -1,1 +1,9 @@
-REAMDE A COMPLETER QUAND ON AURA LE TEMPS
+## **Organisation du répertoire**
+- Le fichier **methods_for_scalar_input.py** contient les définitions des méthodes dans le cas d'entrées et sorties scalaires (cas facile) et sont utilisées dans le notebook **Campbell_scalar_input.ipynb**.
+- Le fichier **Design_of_Experiments.py** contient la définition de la fonction de création de plan d'expérience par LHS (Latin Hypercube Sampling) et est utilisé dans les notebooks **Campbell_scalar_input.ipynb**.
+- Le fichier **Gaussian_Process.py** contient la définition d'un noyau personnalisé pour des entrées fonctionnelles et les fonctions d'entraînement et de prédiction d'un processus gaussien avec ce noyau. Ces fonctions sont réutilisées dans le fichier **ACPF.py**.
+- Le fichier **ACPF.py** contient la définition des méthodes d'ACPF (décomposition en Bsplines/Ondelettes, ACP)et prédiction par processus gaussien pour des entrées fonctionnelles. Les méthodes sont à la fois définies pour l'entraînement et la prédiction. Ces fonctions sont utilisées dans le fichier **model_class.py**.
+- Le fichier **model_class.py** contient la définition de classes qui permettent de gérer l'entraînement et la prédiction des différents modèles d'ACPF pour des entrées fonctionnelles. Cette classe est utilisée dans les notebooks **Campbell_functional_input.ipynb**, **Campbell_functional_output.ipynb** et **Saint_Malo_functional_output.ipynb**.
+- Le fichier **validation_gp.py** contient la définition des plots à afficher pour la validation des modèles de processus gaussiens. Ces fonctions sont appelées avec l'argument `verbose=True` dans les classes définies dans **model_class.py**.
+
+Ce dossier contient également un fichier **\_\_init\_\_.py** pour permettre l'importation des fonctions définies dans les différents fichiers dans les notebooks qui se trouvent dans les autres dossiers du répertoire.
