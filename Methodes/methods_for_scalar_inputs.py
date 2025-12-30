@@ -165,7 +165,7 @@ def Bsplines_ACP(x_train, x_test, y_train,t1, t2, n_pc, param, degree=1):
 
     return Y_test_reconstruct
 
-def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
+def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,p=0,J=1):
 
     n_samples, signal_length = y_train.shape
     wavelet = "db4"
@@ -181,20 +181,15 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
     K = sum(coeffs_shapes)
     coeffs_wavelets = np.zeros((n_samples, K))
     for i, coeffs in enumerate(coeffs_list):
-        coeffs_wavelets[i, :] = np.concatenate(coeffs)
+        coeffs_wavelets[i, :] = np.concatenate(coeffs) 
 
     #Sélection des K_tildes coefficients pour l'ACP
     #Calcul du ratio d'énergie moyen de chaque coefficient
-    lambda_k = np.mean(coeffs_wavelets**2/np.sum(coeffs_wavelets**2,axis=1,keepdims=True),axis=0)
+    lambda_k = np.mean(coeffs_wavelets**2/(np.sum(coeffs_wavelets**2,axis=1,keepdims=True)+1e-10),axis=0)
     #Tri dans l'ordre décroissant
     indices_sorted = np.argsort(lambda_k)[::-1]
     lambda_k_sorted = lambda_k[indices_sorted]
-    if K_tilde!=0 :
-        #K_tilde !=0 , on prend les K_tilde coefficients d'ondelettes avec lambda_k les plus élevés
-        indices_ACP = indices_sorted[:K_tilde]
-        energy = np.sum(lambda_k_sorted[:K_tilde])
-        print(f"Proportion moyenne de l'énergie : {energy} ")
-    elif p!=0 : 
+    if p!=0 : 
         # p!=0, on prend les coefficients d'ondelettes avec lambda_k les plus élevés jusquà ce que la somme des lambda_k soit supérieure à p
         K_tilde = np.searchsorted(np.cumsum(lambda_k_sorted), p, side='left') + 1
         indices_ACP = indices_sorted[:K_tilde]
@@ -232,5 +227,78 @@ def ACPF_Ondelettes(x_train,x_test,y_train,n_pc,param,K_tilde=0,p=0,J=1):
             idx += shape
         # Reconstruction inverse multirésolution
         Y_test_reconstruct[i, :] = pywt.waverec(coeffs_rec, wavelet=wavelet, mode="periodization")
+
+    return Y_test_reconstruct
+
+import numpy as np
+import pywt
+
+def ACPF_Ondelettes_2D(x_train, x_test, y_train, n_pc, param, p=0, J=1):
+    """
+    y_train doit être de forme (n_samples, height, width)
+    """
+    n_samples, height, width = y_train.shape
+    wavelet = "db4"
+    mode = "periodization"
+
+    coeffs_flat_list = []
+    coeff_slices = None # Pour garder en mémoire la structure (tailles) des coeffs
+    
+    for i in range(n_samples):
+        # Décomposition 2D
+        coeffs = pywt.wavedec2(y_train[i, :, :], wavelet=wavelet, mode=mode, level=J)
+        
+        # Transformation en un vecteur 1D
+        coeffs_flat, slices = pywt.coeffs_to_array(coeffs)
+        coeffs_flat_list.append(coeffs_flat)
+        if i == 0:
+            coeff_slices = slices # On garde la structure du premier échantillon pour la reconstruction
+
+    # Conversion en matrice numpy (n_samples, K)
+    coeffs_wavelets = np.array(coeffs_flat_list)
+    K = coeffs_wavelets.shape[1]
+
+    # Calcul du ratio d'énergie moyen
+    # Petit ajout epsilon pour éviter division par zero si signal nul
+    lambda_k = np.mean(coeffs_wavelets**2 / (np.sum(coeffs_wavelets**2, axis=1, keepdims=True) + 1e-10), axis=0)
+    
+    indices_sorted = np.argsort(lambda_k)[::-1]
+    lambda_k_sorted = lambda_k[indices_sorted]
+    if p != 0:
+        K_tilde = np.searchsorted(np.cumsum(lambda_k_sorted), p, side='left') + 1
+        indices_ACP = indices_sorted[:K_tilde]
+        print(f"Nombre de coefficients conservés pour l'ACP : {K_tilde}")
+    else:
+        raise ValueError("Either K_tilde or p must be different of 0")
+
+    indices_ACP.sort() # Important pour garder l'ordre des indices
+    indices_mean = np.setdiff1d(np.arange(K), indices_ACP)
+    
+    coeffs_wavelets_ACP = coeffs_wavelets[:, indices_ACP]
+    coeffs_wavelets_mean = coeffs_wavelets[:, indices_mean]
+
+    # --- 3. ACP et Moyenne ---
+    wavelets_test_reconstruct = ACP(x_train, x_test, coeffs_wavelets_ACP, n_pc, param)
+    
+    coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean, axis=0, keepdims=True)
+
+    # --- 4. Reconstruction du vecteur de coefficients ---
+    n_test = x_test.shape[0]
+    
+    wavelets_test_reconstruct_total = np.zeros((n_test, K), dtype=float)
+    wavelets_test_reconstruct_total[:, indices_ACP] = wavelets_test_reconstruct
+    wavelets_test_reconstruct_total[:, indices_mean] = coeffs_wavelets_mean_reconstruct
+
+    # --- 5. Reconstruction Inverse 2D ---
+    Y_test_reconstruct = np.zeros((n_test, height, width), dtype=float)
+
+    for i in range(n_test):
+        coeffs_flat_rec = wavelets_test_reconstruct_total[i, :]
+        
+        # On remet le vecteur plat sous la forme "liste de tuples" attendue par waverec2
+        coeffs_rec = pywt.array_to_coeffs(coeffs_flat_rec, coeff_slices, output_format='wavedec2')
+        
+        # Reconstruction inverse 2D
+        Y_test_reconstruct[i, :, :] = pywt.waverec2(coeffs_rec, wavelet=wavelet, mode=mode)
 
     return Y_test_reconstruct

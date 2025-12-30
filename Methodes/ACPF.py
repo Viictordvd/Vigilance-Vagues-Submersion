@@ -141,3 +141,108 @@ def Ondelettes_predict(models,x_test,n_pc,V, y_bar, coeffs_wavelets_mean ,coeffs
         Y_test_reconstruct[i, :] = pywt.waverec(coeffs_rec, wavelet=wavelet, mode="periodization")
 
     return Y_test_reconstruct
+
+import numpy as np
+import pywt
+
+def Ondelettes2D_train(x_train, y_train, n_pc, param, K_tilde=0, p=0, J=1, kernel_fn=None, verbose=False):
+    """
+    y_train : Doit être de forme (n_samples, height, width)
+    """
+    if y_train.ndim == 4: #Cas temporel
+        n_samples, n_time, height, width = y_train.shape
+        # On empile les images les unes a coté des autres (horizontalement)
+        y_train = y_train.reshape(n_samples,height, n_time *width)
+        image_shape = (height, n_time * width)
+    else :
+        n_samples, height, width = y_train.shape
+        image_shape = (height, width) 
+    wavelet = "db4"
+    mode = "periodization"
+
+    # --- 1. Décomposition en ondelettes 2D et Aplatissement ---
+    coeffs_flat_list = []
+    coeff_slices = None # Remplace coeffs_shapes pour la 2D
+    
+    for i in range(n_samples):
+        # Décomposition 2D
+        coeffs = pywt.wavedec2(y_train[i, :, :], wavelet=wavelet, mode=mode, level=J)
+        
+        # Transformation de la structure complexe en vecteur 1D
+        # On capture 'slices' lors de la première itération, c'est la carte d'identité de la structure
+        coeffs_flat, slices = pywt.coeffs_to_array(coeffs)
+        coeffs_flat_list.append(coeffs_flat.flatten())
+        if i == 0:
+            coeff_slices = slices
+
+    # Matrice des coefficients (n_samples, K)
+    coeffs_wavelets = np.array(coeffs_flat_list)
+    K = coeffs_wavelets.shape[1]
+
+    # --- 2. Sélection des coefficients pour l'ACP ---
+    # Calcul du ratio d'énergie (ajout epsilon pour stabilité num.)
+    lambda_k = np.mean(coeffs_wavelets**2 / (np.sum(coeffs_wavelets**2, axis=1, keepdims=True) + 1e-10), axis=0)
+    
+    # Tri décroissant
+    indices_sorted = np.argsort(lambda_k)[::-1]
+    lambda_k_sorted = lambda_k[indices_sorted]
+
+    if K_tilde != 0:
+        indices_ACP = indices_sorted[:K_tilde]
+        energy = np.sum(lambda_k_sorted[:K_tilde])
+        print(f"Proportion moyenne de l'énergie : {energy:.4f}")
+    elif p != 0:
+        K_tilde = np.searchsorted(np.cumsum(lambda_k_sorted), p, side='left') + 1
+        indices_ACP = indices_sorted[:K_tilde]
+        print(f"Nombre de coefficients conservés pour l'ACP : {K_tilde}")
+    else:
+        raise ValueError("Either K_tilde or p must be different of 0")
+
+    # Séparation ACP vs Moyenne
+    indices_ACP.sort()
+    indices_mean = np.setdiff1d(np.arange(K), indices_ACP)
+    
+    coeffs_wavelets_ACP = coeffs_wavelets[:, indices_ACP]
+    coeffs_wavelets_mean = coeffs_wavelets[:, indices_mean]
+
+    # --- 3. Entraînement ACP ---
+    # On appelle votre fonction ACP_train existante
+    print(np.shape(coeffs_wavelets_ACP))
+    models, V, y_bar = ACP_train(x_train, coeffs_wavelets_ACP, n_pc, param, kernel_fn=kernel_fn, verbose=verbose)
+
+    # On retourne coeff_slices (nécessaire pour waverec2) au lieu de coeffs_shapes
+    return models, V, y_bar, coeffs_wavelets_mean, coeff_slices, image_shape, indices_ACP, indices_mean
+
+def Ondelettes2D_predict(models, x_test, n_pc, V, y_bar, coeffs_wavelets_mean, coeff_slices, image_shape, indices_ACP, indices_mean):
+    wavelet = "db4"
+    mode = "periodization"
+    
+    # --- 1. Prédiction des coefficients ACP ---
+    wavelets_test_reconstruct = ACP_predict(models, x_test, n_pc, V, y_bar)
+
+    # Moyenne empirique pour les coefficients non sélectionnés
+    coeffs_wavelets_mean_reconstruct = np.mean(coeffs_wavelets_mean, axis=0, keepdims=True)
+
+    # --- 2. Assemblage du vecteur complet de coefficients ---
+    n_test = x_test.shape[0]
+    K = len(indices_ACP) + len(indices_mean)
+    
+    wavelets_test_reconstruct_total = np.zeros((n_test, K), dtype=float)
+    wavelets_test_reconstruct_total[:, indices_ACP] = wavelets_test_reconstruct
+    wavelets_test_reconstruct_total[:, indices_mean] = coeffs_wavelets_mean_reconstruct
+
+    # --- 3. Reconstruction Inverse 2D ---
+    height, width = image_shape
+    Y_test_reconstruct = np.zeros((n_test, height, width), dtype=float)
+
+    for i in range(n_test):
+        coeffs_flat_rec = wavelets_test_reconstruct_total[i, :]
+        
+        # C'est ici que la magie opère : on recrée la structure complexe (liste de tuples)
+        # à partir du vecteur plat et des slices sauvegardées
+        coeffs_rec = pywt.array_to_coeffs(coeffs_flat_rec.reshape(image_shape), coeff_slices, output_format='wavedec2')
+        
+        # Reconstruction inverse 2D
+        Y_test_reconstruct[i, :, :] = pywt.waverec2(coeffs_rec, wavelet=wavelet, mode=mode)
+
+    return Y_test_reconstruct
