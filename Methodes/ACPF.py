@@ -58,7 +58,7 @@ def B_Splines_train(x_train, y_train,noeuds,domaine,n_pc, param, degree=1,kernel
     # calcul des coefficients C par moindres carrés
     C = np.linalg.lstsq(B, y_train.T, rcond=None)[0].T # solve B @ C = y  -> c = lstsq(B, y)
     
-    models, V, y_bar = ACP_train(x_train,C,n_pc,param,kernel_fn=None,verbose=False) #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
+    models, V, y_bar = ACP_train(x_train,C,n_pc,param,kernel_fn=None,verbose=verbose) #ACP sur les coefficients C puis reconstruction (en utilisant les processus gaussiens)
     return models, V, y_bar, B
 
 def B_Splines_predict(models,x_test, n_pc,V,y_bar,Bxy):
@@ -108,7 +108,7 @@ def Ondelettes_train(x_train,y_train,n_pc,param,K_tilde=0,p=0,J=1,kernel_fn=None
     coeffs_wavelets_mean = coeffs_wavelets[:,indices_mean]
 
     #ACP sur les coefficients d'ondelettes sélectionnés
-    models,V,y_bar = ACP_train(x_train,coeffs_wavelets_ACP,n_pc,param,kernel_fn=None,verbose=False)
+    models,V,y_bar = ACP_train(x_train,coeffs_wavelets_ACP,n_pc,param,kernel_fn=None,verbose=verbose)
     return models,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean
 
 def Ondelettes_predict(models,x_test,n_pc,V, y_bar, coeffs_wavelets_mean ,coeffs_shapes, signal_length ,indices_ACP, indices_mean):
