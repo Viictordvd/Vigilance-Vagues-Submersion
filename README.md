@@ -1,5 +1,5 @@
 # Vigilance-Vague-Submersion
-Pour la présentation du projet, merci de lire le fichier "Présentation du projet.pdf"
+Pour la présentation du projet, merci de lire le fichier **"Présentation du projet.pdf".** dans le dossier **./Références**. Notre rapport **"2025-2026-projet-5A-SlissePaul-DavodeauVictor.pdf"** est disponible dans le même dossier.
 
 ## Installation
 
@@ -14,7 +14,7 @@ Pour la présentation du projet, merci de lire le fichier "Présentation du proj
    pip install -r requirements.txt
 
 ## **Organisation du répertoire**
-   - Le dossier "**Références**" contient l'ensemble de la littérature scientifique que nous avons utilisée.
+   - Le dossier "**Références**" contient l'ensemble de la littérature scientifique que nous avons utilisée, ainsi que notre rapport et les slides de notre présentation.
    - Le dossier "**Cas_jouet_Campbell**" contient nos premiers travaux sur le cas jouet Campbell. Il y a des notebooks, les données de notre plan d'expérience, des gifs de sortie et un fichier Readme explicatif.
    - Le dossier "**Cas_test_Saint_Malo**" contient la suite de nos travaux. Il a la même structure que le cas jouet. Il y a aussi des notebooks, des données issus de réalisations TOLOSA, des gifs de sortie et un fichier Readme explicatif.
    - Le dossier "**Anglais**" contient pour l'instant une banque de mots de vocabulaire ainsi qu'une rapide présentation du projet.
